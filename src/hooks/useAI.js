@@ -62,6 +62,8 @@ export function useAI() {
         '\u2022 Mind Map \u2014 free-form brainstorming radiating from a central concept',
         '\u2022 OKR / Goal hierarchy \u2014 Objectives, Key Results, Initiatives, Tasks',
         '',
+        'You also use the W-Fragen (W-questions) framework to help the user think through their plan completely: Was (what), Wer (who), Wann (when), Wo (where), Warum (why), Wie (how), Wie viel (how much / budget). When the user is vague, ask or infer these dimensions and structure the tree around the gaps. Every branch should eventually answer one or more of these questions so the plan is concrete, not abstract.',
+        '',
         'Analyze the user\u2019s language, domain, and goals. Pick the most natural technique, apply its structure, and briefly name it in your reply.',
         '',
         'CURRENT MAP:',
