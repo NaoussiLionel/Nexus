@@ -78,7 +78,7 @@ export function useAI() {
         '{"type":"delete_node","nodeId":"<id>"}',
         ']',
         '',
-        'Titles: 2-6 words. Descriptions: one concise sentence. A new map starts with 1 core + 3-5 branches, each with 2-4 items. Reply in the same language the user is writing in.'
+        'Every leaf node must be a clear, executable statement \u2014 something someone can actually do: "Design database schema", "Implement login endpoint", "Write unit tests for X". Avoid vague or abstract labels. Each node should resolve a concrete sub-task that brings the full project to life. Descriptions: one concise sentence explaining the how or why. Titles: 2-6 words, starting with a verb where possible. A new map starts with 1 core + 3-5 branches, each with 2-4 leaves. Reply in the same language the user is writing in.'
       ].join('\n');
     }
 
@@ -218,7 +218,7 @@ export function useAI() {
     ];
     if (siblings.length) lines.push('Existing sibling items (avoid duplicating): ' + siblings.join(', '));
     lines.push('');
-    lines.push('Break down "' + node.title + '" into 3 to 5 concrete sub-items that flesh out its description. Respond with ONLY a JSON array, no commentary or markdown fences: [{"title":"...","description":"one concise sentence"}]');
+    lines.push('Break down "' + node.title + '" into 3 to 5 concrete, executable sub-items that flesh out its description. Each must be an action someone can take (e.g. "Design API schema", not "API design"). Respond with ONLY a JSON array, no commentary or markdown fences: [{"title":"...","description":"one concise sentence"}]');
     lines.push('Reply in the same language as the titles above.');
     const prompt = lines.join('\n');
 
