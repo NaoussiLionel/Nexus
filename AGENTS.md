@@ -73,7 +73,9 @@ Key state:
 - `positionNewNodes(parent)` — places new children near parent without moving existing nodes (used by AI to preserve manual positions)
 
 ## AI Integration
-- `puter.ai.chat(messages, {model, stream: true})` for streaming
+- Primary: `puter.ai.chat(messages, {model, stream: true})` for streaming
+- Fallback: Gemini API via fetch (`useGemini.js`) — user provides key in sidebar settings (gear icon), stored in localStorage
+- `tryAI()` / `tryAISync()` helpers in `useAI.js` try puter first, then Gemini; returns null if both fail
 - System prompt in `useAI.js` `buildSystemPrompt()` — 3-level tree, multi-methodology, W-Fragen framework, WBS/Agile/Kanban/Waterfall/CPM/MindMap/OKR
 - AI response parsed for `@@REPLY@@` and `@@ACTIONS@@` markers
 - Actions: `set_tree`, `add_children`, `update_node`, `delete_node`

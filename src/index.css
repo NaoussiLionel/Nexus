@@ -380,6 +380,18 @@ body.sidebar-hidden .sidebar{ width:0; opacity:0; border-left:none; }
 .send-btn .lucide{ width:17px; height:17px; }
 .send-btn:hover{ background:var(--brass-bright); }
 .send-btn:disabled{ opacity:.4; cursor:default; }
+
+.sidebar-settings{ padding:8px 14px; border-bottom:1px solid var(--bp-600); display:flex; flex-direction:column; gap:6px; background:var(--bp-750); }
+.settings-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.settings-row svg{ flex-shrink:0; color:var(--ink-faint); }
+.settings-input{
+  flex:1; min-width:100px; height:30px; padding:0 10px; border-radius:6px; border:1px solid var(--bp-600);
+  background:var(--bp-700); color:var(--ink); font-family:var(--font-mono); font-size:.72rem; outline:none;
+}
+.settings-input:focus{ border-color:var(--brass); }
+.settings-save{ height:30px; padding:0 12px; font-size:.72rem; white-space:nowrap; }
+.settings-hint{ font-size:.65rem; color:var(--ink-faint); }
+
 .hint-line{ padding:0 16px 10px; font-family:var(--font-mono); font-size:.62rem; color:var(--ink-faint); letter-spacing:.04em; }
 
 .details-drawer{

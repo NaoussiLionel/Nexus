@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { STORAGE_KEY, MODELS, DEFAULT_MODEL, LAYOUTS, DEFAULT_LAYOUT } from '../utils/constants';
 import { rebuildNodeMap, findNode, getBounds, applyActions as applyTreeActions } from '../utils/tree';
 import { generateId } from '../utils/helpers';
@@ -35,9 +35,15 @@ export function NexusProvider({ children }) {
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingActions, setPendingActions] = useState(null);
+  const [geminiKey, setGeminiKey] = useState(() => {
+    try { return localStorage.getItem('nexus_gemini_key') || ''; } catch { return ''; }
+  });
   const [resetArmed, setResetArmed] = useState(false);
 
   const saveTimer = useRef(null);
+  useEffect(() => {
+    try { localStorage.setItem('nexus_gemini_key', geminiKey || ''); } catch { /* ignore */ }
+  }, [geminiKey]);
 
   const setTree = useCallback((t) => {
     setTreeRaw(t);
@@ -71,12 +77,12 @@ export function NexusProvider({ children }) {
       try {
         if (!window.puter?.storage) return;
         await window.puter.storage.set(STORAGE_KEY, JSON.stringify({
-          tree, chat: chat.slice(-24), model, layout, savedAt: Date.now()
+          tree, chat: chat.slice(-24), model, layout, geminiKey, savedAt: Date.now()
         }));
         setLastSaved(Date.now());
       } catch { /* ignore */ }
     }, 500);
-  }, [tree, chat, model, layout]);
+  }, [tree, chat, model, layout, geminiKey]);
 
   const loadFromStorage = useCallback(async () => {
     try {
@@ -88,10 +94,13 @@ export function NexusProvider({ children }) {
         if (Array.isArray(data.chat)) setChat(data.chat);
         if (data.model && MODELS.some(m => m.id === data.model)) setModel(data.model);
         if (data.layout && LAYOUTS.some(l => l.id === data.layout)) setLayout(data.layout);
+        if (data.geminiKey && !geminiKey) {
+          try { localStorage.setItem('nexus_gemini_key', data.geminiKey); setGeminiKey(data.geminiKey); } catch { /* ignore */ }
+        }
         setLastSaved(data.savedAt || null);
       }
     } catch { /* ignore */ }
-  }, [setTree]);
+  }, [setTree, geminiKey, setGeminiKey]);
 
   const resetProject = useCallback(async () => {
     setTreeRaw(null);
@@ -237,13 +246,15 @@ export function NexusProvider({ children }) {
     pendingActions, setPendingActions,
     confirmPendingActions: confirmPendingActionsCB,
     cancelPendingActions: cancelPendingActionsCB,
+    geminiKey, setGeminiKey,
     resetArmed, setResetArmed,
     pushHistory, undo, persist, loadFromStorage, resetProject,
     addToast, removeToast,
     openDrawer, closeDrawer,
     setScale, zoomIn, zoomOut, fitView,
   }), [tree, nodeMap, chat, model, canvas, isolatedId, selectedId, selectedIds, history,
-      busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, layout, searchQuery, pendingActions, resetArmed,
+      busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, layout, searchQuery, pendingActions,
+      geminiKey, resetArmed,
       confirmPendingActionsCB, cancelPendingActionsCB,
       setTree, setNodeMap, setChat, setModel, setCanvas, setIsolatedId,
       setSelectedId, setSelectedIds, setHistory, setBusy, setRecentlyAddedIds, setLastSaved,

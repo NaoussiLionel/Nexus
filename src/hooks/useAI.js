@@ -5,6 +5,7 @@ import {
   positionNewNodes, buildTreeOutline,
 } from '../utils/tree';
 import { REPLY_MARK, ACTIONS_MARK, MAX_VISIBLE_DEPTH } from '../utils/constants';
+import { geminiChat } from './useGemini';
 
 function parseAIResponse(text) {
   const idx = text.indexOf(ACTIONS_MARK);
@@ -19,19 +20,40 @@ function parseAIResponse(text) {
   return { reply, actions };
 }
 
+async function tryAI(messages, opts) {
+  if (typeof window.puter !== 'undefined' && window.puter.ai) {
+    try { return await window.puter.ai.chat(messages, opts); } catch { /* fall through */ }
+  }
+  if (opts.apiKey) {
+    try { return await geminiChat(messages, opts); } catch { /* fall through */ }
+  }
+  return null;
+}
+
+async function tryAISync(prompt, opts) {
+  if (typeof window.puter !== 'undefined' && window.puter.ai) {
+    try { return await window.puter.ai.chat(prompt, opts); } catch { /* fall through */ }
+  }
+  if (opts.apiKey) {
+    try { return await geminiChat([{ role: 'user', content: prompt }], { ...opts, stream: false }); } catch { /* fall through */ }
+  }
+  return null;
+}
+
 export function useAI() {
   const {
     tree, setTree, chat, setChat, model, layout,
     pushHistory, persist, setBusy, addToast, fitView,
     setRecentlyAddedIds, setIsolatedId,
     setPendingActions,
+    geminiKey,
   } = useNexus();
 
   const sendChatMessage = useCallback(async (userText) => {
     userText = (userText || '').trim();
     if (!userText) return;
-    if (typeof window.puter === 'undefined' || !window.puter.ai) {
-      addToast('Couldn\u2019t reach the AI \u2014 check your connection and try again.', 'error');
+    if ((typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
+      addToast('No AI available. Add a Gemini API key in sidebar settings, or try again later.', 'error');
       return;
     }
 
@@ -84,7 +106,8 @@ export function useAI() {
       const msgHistory = chat.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
       const messages = [{ role: 'system', content: sys }].concat(msgHistory, [{ role: 'user', content: userText }]);
 
-      const resp = await window.puter.ai.chat(messages, { model, stream: true });
+      const resp = await tryAI(messages, { model, stream: true, apiKey: geminiKey });
+      if (!resp) { throw new Error('All AI providers failed'); }
       let full = '';
 
       for await (const part of resp) {
@@ -131,13 +154,13 @@ export function useAI() {
     } finally {
       setBusy(false);
     }
-  }, [tree, chat, model, layout, setChat, setBusy, addToast, pushHistory, persist, setPendingActions]);
+  }, [tree, chat, model, layout, setChat, setBusy, addToast, pushHistory, persist, setPendingActions, geminiKey]);
 
   const expandNodeAI = useCallback(async (nodeId) => {
     const node = findNode(tree, nodeId);
     if (!node) return;
-    if (typeof window.puter === 'undefined' || !window.puter.ai) {
-      addToast('AI isn\u2019t available right now.', 'error');
+    if ((typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
+      addToast('No AI available. Add a Gemini API key in sidebar settings, or try again later.', 'error');
       return;
     }
     setBusy(true);
@@ -162,7 +185,8 @@ export function useAI() {
     const prompt = lines.join('\n');
 
     try {
-      const resp = await window.puter.ai.chat(prompt, { model });
+      const resp = await tryAISync(prompt, { model, apiKey: geminiKey });
+      if (!resp) throw new Error('All AI providers failed');
       const text = typeof resp === 'string' ? resp : (resp?.message?.content || resp?.text || '');
       const m = text.match(/\[[\s\S]*\]/);
       if (!m) throw new Error('unexpected response format');
@@ -195,13 +219,13 @@ export function useAI() {
       setBusy(false);
       setTree({ ...tree });
     }
-  }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId]);
+  }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId, geminiKey]);
 
   const elaborateNodeAI = useCallback(async (nodeId, onContent) => {
     const node = findNode(tree, nodeId);
     if (!node) return;
-    if (typeof window.puter === 'undefined' || !window.puter.ai) {
-      addToast('AI isn\u2019t available right now.', 'error');
+    if ((typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
+      addToast('No AI available. Add a Gemini API key in sidebar settings, or try again later.', 'error');
       return;
     }
     setBusy(true);
@@ -214,13 +238,14 @@ export function useAI() {
       'Component: ' + path,
       'Existing notes: ' + (node.description || '(none yet)'),
       '',
-      'IMPORTANT — ' + langHint,
+      'IMPORTANT \u2014 ' + langHint,
       '',
       'Write a focused elaboration for "' + node.title + '" as plain markdown: one short paragraph, then 3-5 bullet points covering concrete deliverables, considerations, or next steps. No heading, no preamble, no markdown fences.',
     ].join('\n');
 
     try {
-      const resp = await window.puter.ai.chat(prompt, { model, stream: true });
+      const resp = await tryAI([{ role: 'user', content: prompt }], { model, stream: true, apiKey: geminiKey });
+      if (!resp) throw new Error('All AI providers failed');
       let full = '';
       for await (const part of resp) {
         if (part?.text) { full += part.text; onContent(full); }
@@ -231,7 +256,7 @@ export function useAI() {
     } finally {
       setBusy(false);
     }
-  }, [tree, chat, model, setBusy, addToast]);
+  }, [tree, chat, model, setBusy, addToast, geminiKey]);
 
   return { sendChatMessage, expandNodeAI, elaborateNodeAI };
 }

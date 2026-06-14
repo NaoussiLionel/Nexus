@@ -3,13 +3,15 @@ import { useNexus } from '../store/NexusContext';
 import { useAI } from '../hooks/useAI';
 import { MODELS, SUGGESTIONS } from '../utils/constants';
 import { escapeHtml, renderInline } from '../utils/helpers';
-import { Compass, User, Brain, ChevronRight, GitCommitHorizontal, Send, X } from 'lucide-react';
+import { Compass, User, Brain, ChevronRight, GitCommitHorizontal, Send, X, Settings, KeyRound } from 'lucide-react';
 
 export default function Sidebar() {
-  const { tree, chat, model, setModel, busy, persist } = useNexus();
+  const { tree, chat, model, setModel, busy, persist, geminiKey, setGeminiKey, addToast } = useNexus();
   const { sendChatMessage } = useAI();
   const inputRef = useRef(null);
   const [input, setInput] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [keyInput, setKeyInput] = useState('');
   const showSuggestions = !tree && chat.filter(m => m.role === 'user').length === 0;
 
   const handleSend = useCallback((text) => {
@@ -53,7 +55,7 @@ export default function Sidebar() {
             <p>Your thinking partner</p>
           </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
           <select
             className="model-select"
             value={model}
@@ -63,6 +65,9 @@ export default function Sidebar() {
               <option key={m.id} value={m.id}>{m.label}</option>
             ))}
           </select>
+          <button className={`icon-btn${showSettings ? ' active' : ''}`} title="API settings" onClick={() => { setShowSettings(!showSettings); if (!showSettings) setKeyInput(geminiKey); }}>
+            <Settings size={15} />
+          </button>
           <button className="icon-btn" title="Hide sidebar" onClick={() => {
             if (window.innerWidth <= 1100) {
               document.body.classList.remove('sidebar-open');
@@ -75,6 +80,34 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {showSettings && (
+        <div className="sidebar-settings">
+          <div className="settings-row">
+            <KeyRound size={13} />
+            <span>Gemini API Key</span>
+          </div>
+          <div className="settings-row">
+            <input
+              className="settings-input"
+              type="password"
+              placeholder="Paste your Gemini API key\u2026"
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+            />
+            <button
+              className="btn-ghost settings-save"
+              disabled={!keyInput.trim()}
+              onClick={() => { setGeminiKey(keyInput.trim()); addToast('API key saved'); }}
+            >Save</button>
+          </div>
+          {geminiKey && (
+            <div className="settings-row">
+              <button className="btn-ghost" style={{ color:'var(--ink-faint)', fontSize:'.7rem' }} onClick={() => { setGeminiKey(''); setKeyInput(''); }}>Clear key</button>
+              <span className="settings-hint">Key saved. AI will fall back to Gemini when puter.ai is unavailable.</span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="chat-messages" id="chatMessages">
         {chat.map((msg, _idx) => (
           <div key={_idx} className={`msg ${msg.role === 'user' ? 'msg-user' : 'msg-ai'}`}>
