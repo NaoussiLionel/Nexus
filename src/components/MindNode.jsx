@@ -4,7 +4,7 @@ import { useAI } from '../hooks/useAI';
 import { hashAngle, truncate } from '../utils/helpers';
 import {
   makeNode, findNode, removeNodeFromTree,
-  recomputeLayout, placeNewChildren, countDescendants
+  recomputeLayout, countDescendants
 } from '../utils/tree';
 import {
   Sparkles, FileText, Plus, Crosshair, Minimize2, Trash2,
@@ -51,7 +51,7 @@ export default function MindNode({ node }) {
     n.children = n.children || [];
     n.children.push(child);
     n.collapsed = false;
-    placeNewChildren(n);
+    recomputeLayout(t);
     setTree(t);
     persist();
     openDrawer(child.id);

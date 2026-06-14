@@ -3,7 +3,7 @@ import { useNexus } from '../store/NexusContext';
 import {
   makeNode, findNode, findParent, ancestorPath,
   normalizeTree, removeNodeFromTree,
-  recomputeLayout, placeNewChildren, buildTreeOutline
+  recomputeLayout, buildTreeOutline
 } from '../utils/tree';
 import { REPLY_MARK, ACTIONS_MARK } from '../utils/constants';
 
@@ -50,15 +50,26 @@ export function useAI() {
     function buildSystemPrompt() {
       const outline = tree ? buildTreeOutline(tree) : '(empty \u2014 no project yet)';
       return [
-        'You are the AI Architect embedded in "Nexus Architect", a visual project-planning canvas.',
-        'A project is a tree: one core node (depth 0), branches (depth 1, major phases or workstreams), and items (depth 2+, concrete tasks or deliverables).',
+        'You are the AI Architect in "Nexus Architect" \u2014 a visual project-planning canvas that adapts to any methodology.',
+        'The tree has 3 levels: core (depth 0), branches / phases / workstreams (depth 1), and items / tasks / deliverables (depth 2+).',
+        '',
+        'You know these planning techniques and choose the one that best fits the user\u2019s intent from the conversation:',
+        '\u2022 Work Breakdown Structure (WBS) \u2014 hierarchical decomposition of deliverables',
+        '\u2022 Agile / Scrum \u2014 sprints, epics, user stories, tasks',
+        '\u2022 Kanban \u2014 columns (To Do / In Progress / Done) as branches, work items as leaves',
+        '\u2022 Waterfall \u2014 sequential phases: Requirements, Design, Implementation, Testing, Deployment',
+        '\u2022 Critical Path Method (CPM) \u2014 milestones and dependencies as a dependency graph',
+        '\u2022 Mind Map \u2014 free-form brainstorming radiating from a central concept',
+        '\u2022 OKR / Goal hierarchy \u2014 Objectives, Key Results, Initiatives, Tasks',
+        '',
+        'Analyze the user\u2019s language, domain, and goals. Pick the most natural technique, apply its structure, and briefly name it in your reply.',
         '',
         'CURRENT MAP:',
         outline,
         '',
         'Respond in exactly this two-part format and nothing else \u2014 no extra commentary outside these two markers:',
         REPLY_MARK,
-        '<a short, helpful message for the user, 1-4 sentences, plain text, no markdown headers>',
+        '<a short, helpful message (1-4 sentences, plain text, no headers) that names the technique you chose and what you did>',
         ACTIONS_MARK,
         '<a JSON array of actions to apply to the map, or [] for none. Allowed action objects:',
         '{"type":"set_tree","tree":{"title":"...","description":"...","children":[{"title":"...","description":"...","children":[...]}]}}  (use ONLY to create the very first map, or to fully restructure it)',
@@ -67,32 +78,38 @@ export function useAI() {
         '{"type":"delete_node","nodeId":"<id>"}',
         ']',
         '',
-        'Guidelines: titles are short (2-6 words). Descriptions are one concise sentence. A brand new map needs a core + 3-5 branches, each with 2-4 items. Always reply in the same language the user is writing in.'
+        'Titles: 2-6 words. Descriptions: one concise sentence. A new map starts with 1 core + 3-5 branches, each with 2-4 items. Reply in the same language the user is writing in.'
       ].join('\n');
     }
 
     function applyActions(actions) {
-      let needsLayout = false;
+      let current = tree;
+      let replaced = false;
       actions.forEach(act => {
         if (!act || typeof act !== 'object') return;
         switch (act.type) {
           case 'set_tree':
-            if (act.tree) { setTree(normalizeTree(act.tree, 0)); needsLayout = true; }
+            if (act.tree) {
+              const t = normalizeTree(act.tree, 0);
+              recomputeLayout(t);
+              setTree(t);
+              current = t;
+              replaced = true;
+            }
             break;
           case 'add_children': {
-            const parent = act.parentId === 'root' ? tree : findNode(tree, act.parentId);
+            const parent = act.parentId === 'root' ? current : findNode(current, act.parentId);
             if (parent && Array.isArray(act.children) && act.children.length) {
               parent.children = parent.children || [];
               act.children.slice(0, 6).forEach(c => {
                 parent.children.push(makeNode(c?.title, c?.description, parent.depth + 1));
               });
               parent.collapsed = false;
-              placeNewChildren(parent);
             }
             break;
           }
           case 'update_node': {
-            const n = act.nodeId === 'root' ? tree : findNode(tree, act.nodeId);
+            const n = act.nodeId === 'root' ? current : findNode(current, act.nodeId);
             if (n) {
               if (act.title) n.title = String(act.title).trim() || n.title;
               if (act.description !== undefined) n.description = String(act.description || '').trim();
@@ -100,12 +117,14 @@ export function useAI() {
             break;
           }
           case 'delete_node':
-            if (act.nodeId && act.nodeId !== 'root') removeNodeFromTree(tree, act.nodeId);
+            if (act.nodeId && act.nodeId !== 'root') removeNodeFromTree(current, act.nodeId);
             break;
         }
       });
-      if (needsLayout && tree) recomputeLayout(tree);
-      if (tree) setTree({ ...tree });
+      if (current && !replaced) {
+        recomputeLayout(current);
+        setTree({ ...current });
+      }
     }
 
     setChat(prev => [...prev, { role: 'user', text: userText }]);
@@ -195,11 +214,11 @@ export function useAI() {
     const lines = [
       'Project: "' + tree.title + '"',
       'Location: ' + path,
-      'Current notes for "' + node.title + '": ' + (node.description || '(none)')
+      'Description of "' + node.title + '": ' + (node.description || '(none — infer from the title)')
     ];
     if (siblings.length) lines.push('Existing sibling items (avoid duplicating): ' + siblings.join(', '));
     lines.push('');
-    lines.push('Suggest 3 to 5 new sub-items that belong under "' + node.title + '". Respond with ONLY a JSON array, no commentary or markdown fences: [{"title":"...","description":"one concise sentence"}]');
+    lines.push('Break down "' + node.title + '" into 3 to 5 concrete sub-items that flesh out its description. Respond with ONLY a JSON array, no commentary or markdown fences: [{"title":"...","description":"one concise sentence"}]');
     lines.push('Reply in the same language as the titles above.');
     const prompt = lines.join('\n');
 
@@ -220,7 +239,7 @@ export function useAI() {
         node.children.push(child);
       });
       node.collapsed = false;
-      placeNewChildren(node);
+      recomputeLayout(tree);
       setRecentlyAddedIds(newIds);
       setTree({ ...tree });
       setTimeout(() => { fitView(); }, 50);
