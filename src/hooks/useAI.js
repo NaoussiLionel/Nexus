@@ -143,21 +143,27 @@ export function useAI() {
       }
 
       const { reply, actions } = parseAIResponse(full);
+
+      if (actions && actions.length) {
+        pushHistory();
+        applyActions(actions);
+      }
+
       setChat(prev => {
         const last = prev[prev.length - 1];
         if (last) {
           last.pending = false;
           last.text = reply || full.split(REPLY_MARK).join('').trim() || 'Done.';
           if (actions && actions.length) {
-            pushHistory();
-            applyActions(actions);
             last.actionsApplied = describeActions(actions);
           }
         }
         return [...prev];
       });
+
       if (actions && actions.length && tree) {
         setTimeout(() => fitView(), 50);
+        addToast(describeActions(actions));
       }
       persist();
     } catch (err) {
