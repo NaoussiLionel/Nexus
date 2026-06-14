@@ -5,9 +5,10 @@ import Canvas from './components/Canvas';
 import Sidebar from './components/Sidebar';
 import DetailsDrawer from './components/DetailsDrawer';
 import ToastContainer from './components/Toast';
+import ConfirmDialog from './components/ConfirmDialog';
 
 export default function App() {
-  const { loadFromStorage, drawerNodeId } = useNexus();
+  const { loadFromStorage } = useNexus();
 
   useEffect(() => {
     loadFromStorage();
@@ -19,8 +20,9 @@ export default function App() {
       <main className="app-main">
         <Canvas />
         <Sidebar />
-        <DetailsDrawer key={drawerNodeId || 'none'} />
+        <DetailsDrawer />
       </main>
+      <ConfirmDialog />
       <ToastContainer />
     </>
   );

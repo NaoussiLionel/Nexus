@@ -1,9 +1,21 @@
 import { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
-import { STORAGE_KEY, MODELS, DEFAULT_MODEL } from '../utils/constants';
-import { rebuildNodeMap, findNode, getBounds } from '../utils/tree';
+import { STORAGE_KEY, MODELS, DEFAULT_MODEL, LAYOUTS, DEFAULT_LAYOUT } from '../utils/constants';
+import { rebuildNodeMap, findNode, getBounds, applyActions as applyTreeActions } from '../utils/tree';
 import { generateId } from '../utils/helpers';
 
 const NexusContext = createContext(null);
+
+function describeActionsSummary(actions) {
+  if (!actions?.length) return '';
+  const counts = {};
+  actions.forEach(a => { counts[a.type] = (counts[a.type] || 0) + 1; });
+  const parts = [];
+  if (counts.set_tree) parts.push('drafted the map');
+  if (counts.add_children) parts.push('added items');
+  if (counts.update_node) parts.push('updated ' + counts.update_node + ' node(s)');
+  if (counts.delete_node) parts.push('removed ' + counts.delete_node + ' node(s)');
+  return parts.length ? ('Map updated \u2014 ' + parts.join(', ') + '.') : '';
+}
 
 export function NexusProvider({ children }) {
   const [tree, setTreeRaw] = useState(null);
@@ -13,12 +25,16 @@ export function NexusProvider({ children }) {
   const [canvas, setCanvas] = useState({ scale: 1, x: 0, y: 0 });
   const [isolatedId, setIsolatedId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [history, setHistory] = useState([]);
   const [busy, setBusy] = useState(false);
   const [recentlyAddedIds, setRecentlyAddedIds] = useState(new Set());
   const [lastSaved, setLastSaved] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [drawerNodeId, setDrawerNodeId] = useState(null);
+  const [layout, setLayout] = useState(DEFAULT_LAYOUT);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pendingActions, setPendingActions] = useState(null);
   const [resetArmed, setResetArmed] = useState(false);
 
   const saveTimer = useRef(null);
@@ -55,12 +71,12 @@ export function NexusProvider({ children }) {
       try {
         if (!window.puter?.storage) return;
         await window.puter.storage.set(STORAGE_KEY, JSON.stringify({
-          tree, chat: chat.slice(-24), model, savedAt: Date.now()
+          tree, chat: chat.slice(-24), model, layout, savedAt: Date.now()
         }));
         setLastSaved(Date.now());
       } catch { /* ignore */ }
     }, 500);
-  }, [tree, chat, model]);
+  }, [tree, chat, model, layout]);
 
   const loadFromStorage = useCallback(async () => {
     try {
@@ -71,6 +87,7 @@ export function NexusProvider({ children }) {
         if (data.tree) setTree(data.tree);
         if (Array.isArray(data.chat)) setChat(data.chat);
         if (data.model && MODELS.some(m => m.id === data.model)) setModel(data.model);
+        if (data.layout && LAYOUTS.some(l => l.id === data.layout)) setLayout(data.layout);
         setLastSaved(data.savedAt || null);
       }
     } catch { /* ignore */ }
@@ -167,23 +184,69 @@ export function NexusProvider({ children }) {
     });
   }, [tree, isolatedId, setCanvas]);
 
+  const confirmPendingActionsCB = useCallback(() => {
+    setPendingActions(prev => {
+      if (!prev) return prev;
+      const { actions, layout: actLayout } = prev;
+      const result = applyTreeActions(tree, actions, actLayout);
+      setTree(result.tree);
+      if (result.isolatedId) setIsolatedId(result.isolatedId);
+      const summary = describeActionsSummary(actions);
+      setChat(c => {
+        const last = c[c.length - 1];
+        if (last) {
+          last.pending = false;
+          last.actionsApplied = summary;
+        }
+        return [...c];
+      });
+      setTimeout(() => fitView(), 50);
+      addToast(summary);
+      persist();
+      return null;
+    });
+  }, [tree, setTree, setIsolatedId, setChat, addToast, fitView, persist]);
+
+  const cancelPendingActionsCB = useCallback(() => {
+    setPendingActions(prev => {
+      if (!prev) return prev;
+      const { reply } = prev;
+      setChat(c => {
+        const last = c[c.length - 1];
+        if (last) {
+          last.pending = false;
+          last.text = reply || '';
+          last.actionsApplied = 'Changes were cancelled.';
+        }
+        return [...c];
+      });
+      return null;
+    });
+  }, [setChat]);
+
   const ctx = useMemo(() => ({
     tree, setTree, nodeMap, setNodeMap,
     chat, setChat, model, setModel,
     canvas, setCanvas, isolatedId, setIsolatedId,
-    selectedId, setSelectedId, history, setHistory,
+    selectedId, setSelectedId, selectedIds, setSelectedIds, history, setHistory,
     busy, setBusy, recentlyAddedIds, setRecentlyAddedIds,
     lastSaved, setLastSaved, toasts,
     drawerNodeId, setDrawerNodeId,
+    layout, setLayout,
+    searchQuery, setSearchQuery,
+    pendingActions, setPendingActions,
+    confirmPendingActions: confirmPendingActionsCB,
+    cancelPendingActions: cancelPendingActionsCB,
     resetArmed, setResetArmed,
     pushHistory, undo, persist, loadFromStorage, resetProject,
     addToast, removeToast,
     openDrawer, closeDrawer,
     setScale, zoomIn, zoomOut, fitView,
-  }), [tree, nodeMap, chat, model, canvas, isolatedId, selectedId, history,
-      busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, resetArmed,
+  }), [tree, nodeMap, chat, model, canvas, isolatedId, selectedId, selectedIds, history,
+      busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, layout, searchQuery, pendingActions, resetArmed,
+      confirmPendingActionsCB, cancelPendingActionsCB,
       setTree, setNodeMap, setChat, setModel, setCanvas, setIsolatedId,
-      setSelectedId, setHistory, setBusy, setRecentlyAddedIds, setLastSaved,
+      setSelectedId, setSelectedIds, setHistory, setBusy, setRecentlyAddedIds, setLastSaved,
       setDrawerNodeId, setResetArmed, pushHistory, persist, loadFromStorage,
       resetProject, addToast, removeToast, openDrawer, closeDrawer,
       setScale, zoomIn, zoomOut, fitView, undo]);

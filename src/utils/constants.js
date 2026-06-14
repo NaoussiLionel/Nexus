@@ -20,3 +20,12 @@ export const SUGGESTIONS = [
 
 export const H_GAP = 40;
 export const ROW_GAP = 72;
+export const MAX_VISIBLE_DEPTH = 3;
+
+export const LAYOUTS = [
+  { id: 'tree', label: 'Tree \u2193', desc: 'Top-down hierarchy' },
+  { id: 'root', label: 'Root \u2192', desc: 'Right-branching outline' },
+  { id: 'two-sided', label: '2-Sided \u2194', desc: 'Balanced mind map' },
+  { id: 'star', label: 'Star \u2606', desc: 'Radial burst' },
+];
+export const DEFAULT_LAYOUT = LAYOUTS[0].id;

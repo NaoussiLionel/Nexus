@@ -3,20 +3,23 @@ import { useNexus } from '../store/NexusContext';
 import {
   recomputeLayout, stripForExport, normalizeTree
 } from '../utils/tree';
+import { LAYOUTS } from '../utils/constants';
 import { sanitizeFilename, downloadFile } from '../utils/helpers';
 import {
   Compass, Undo2, LayoutGrid, Maximize, ZoomOut, ZoomIn,
-  Download, FileDown, Upload, Trash2, MessageSquare
+  Download, FileDown, Upload, Trash2, MessageSquare, Search, X
 } from 'lucide-react';
 
 export default function Header() {
   const {
     tree, history, canvas, setTree, setCanvas, pushHistory, persist,
     resetProject, addToast, resetArmed, setResetArmed,
-    fitView, zoomIn, zoomOut, undo
+    fitView, zoomIn, zoomOut, undo, layout, setLayout,
+    searchQuery, setSearchQuery,
   } = useNexus();
   const resetTimer = useRef(null);
   const importRef = useRef(null);
+  const searchRef = useRef(null);
   const has = !!tree;
 
   useEffect(() => {
@@ -26,11 +29,11 @@ export default function Header() {
   const handleArrange = useCallback(() => {
     if (!tree) return;
     pushHistory();
-    recomputeLayout(tree);
+    recomputeLayout(tree, layout);
     setTree({ ...tree });
     persist();
     addToast('All tidied up');
-    }, [tree, pushHistory, setTree, persist, addToast]);
+    }, [tree, layout, pushHistory, setTree, persist, addToast]);
 
   const handleReset = useCallback(() => {
     if (!has) return;
@@ -81,7 +84,7 @@ export default function Header() {
         pushHistory();
         const t = normalizeTree(data, 0);
         setTree(t);
-        recomputeLayout(t);
+        recomputeLayout(t, layout);
         setTimeout(() => fitView(), 50);
         persist();
         addToast('Project imported');
@@ -91,10 +94,16 @@ export default function Header() {
     };
     reader.readAsText(file);
     e.target.value = '';
-  }, [pushHistory, setTree, persist, addToast, fitView]);
+  }, [layout, pushHistory, setTree, persist, addToast, fitView]);
 
   const handleSidebarToggle = useCallback(() => {
-    document.body.classList.toggle('sidebar-open');
+    if (window.innerWidth <= 1100) {
+      document.body.classList.remove('sidebar-hidden');
+      document.body.classList.toggle('sidebar-open');
+    } else {
+      document.body.classList.remove('sidebar-open');
+      document.body.classList.toggle('sidebar-hidden');
+    }
   }, []);
 
   return (
@@ -113,6 +122,17 @@ export default function Header() {
         <button className="icon-btn" title="Auto-arrange layout" disabled={!has} onClick={handleArrange}>
           <LayoutGrid size={17} />
         </button>
+        <select
+          className="layout-select"
+          value={layout}
+          onChange={(e) => setLayout(e.target.value)}
+          disabled={!has}
+          title="Layout style"
+        >
+          {LAYOUTS.map(l => (
+            <option key={l.id} value={l.id} title={l.desc}>{l.label}</option>
+          ))}
+        </select>
         <button className="icon-btn" title="Fit to view" disabled={!has} onClick={fitView}>
           <Maximize size={17} />
         </button>
@@ -125,6 +145,31 @@ export default function Header() {
             <ZoomIn size={17} />
           </button>
         </div>
+        <div className={`search-wrap${searchQuery !== '' ? ' active' : ''}`}>
+          <input
+            ref={searchRef}
+            className="search-input"
+            type="text"
+            placeholder="Search nodes\u2026"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')}
+          />
+          {searchQuery !== '' && (
+            <button className="icon-btn search-clear" title="Clear search" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
+              <X size={15} />
+            </button>
+          )}
+        </div>
+        <button className={`icon-btn${searchQuery !== '' ? ' active' : ''}`} title="Search nodes" onClick={() => {
+          const el = searchRef.current;
+          if (el) {
+            if (document.activeElement === el) { setSearchQuery(''); }
+            else { el.focus(); el.select(); }
+          }
+        }}>
+          <Search size={17} />
+        </button>
         <div className="divider" />
         <div className="export-group">
           <button className="btn-ghost" title="Export project as JSON" disabled={!has} onClick={handleExportJSON}>
@@ -142,7 +187,7 @@ export default function Header() {
         <button className="btn-danger-ghost" title="Clear this project" disabled={!has} onClick={handleReset}>
           <Trash2 size={15} /><span className="btn-label">Clear</span>
         </button>
-        <button className="icon-btn mobile-only" title="Toggle AI Architect" onClick={handleSidebarToggle}>
+        <button className="icon-btn" title="Toggle AI Architect" onClick={handleSidebarToggle}>
           <MessageSquare size={17} />
         </button>
       </div>

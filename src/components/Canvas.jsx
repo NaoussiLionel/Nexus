@@ -1,23 +1,28 @@
-import { useCallback, useRef, useEffect, useMemo } from 'react';
+import { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { useNexus } from '../store/NexusContext';
 import { useCanvas } from '../hooks/useCanvas';
 import {
   getVisibleIds, recomputeLayout, assignCodes,
-  countDescendants, maxDepth, makeNode, findNode
+  countDescendants, maxDepth, makeNode, findNode,
+  removeNodeFromTree
 } from '../utils/tree';
-import { Compass } from 'lucide-react';
+import { nodeWidth, nodeHeight } from '../utils/helpers';
+import { Compass, Trash2 } from 'lucide-react';
 import Connectors from './Connectors';
 import MindNode from './MindNode';
 
 export default function Canvas() {
   const {
     tree, setTree, isolatedId, setIsolatedId, setSelectedId,
-    pushHistory, persist,
-    canvas, openDrawer, lastSaved, fitView, setScale,
+    selectedIds, setSelectedIds,
+    pushHistory, persist, addToast, undo,
+    canvas, openDrawer, lastSaved, fitView, setScale, layout,
   } = useNexus();
   const { wrapRef, onPointerDown: canvasPointerDown, onPointerMove: canvasPointerMove,
           onPointerUp: canvasPointerUp } = useCanvas();
   const dragCtx = useRef(null);
+  const marqueeRef = useRef(null);
+  const [marqueeBox, setMarqueeBox] = useState(null);
   const treeRef = useRef(tree);
   const scaleRef = useRef(canvas.scale);
 
@@ -57,6 +62,20 @@ export default function Canvas() {
       if (!id) return;
       const node = findNode(treeRef.current, id);
       if (!node) return;
+      if (e.shiftKey) {
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+        });
+        setSelectedId(id);
+        e.stopPropagation();
+        return;
+      }
+      if (!selectedIds.has(id) || selectedIds.size <= 1) {
+        setSelectedIds(new Set([id]));
+      }
+      setSelectedId(id);
       dragCtx.current = {
         id, startX: e.clientX, startY: e.clientY,
         origX: node.x, origY: node.y, moved: false
@@ -64,8 +83,20 @@ export default function Canvas() {
       e.stopPropagation();
       return;
     }
+    if (e.shiftKey) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      marqueeRef.current = {
+        startX: e.clientX, startY: e.clientY,
+        curX: e.clientX, curY: e.clientY,
+        rect
+      };
+      setMarqueeBox({ startX: e.clientX, startY: e.clientY, curX: e.clientX, curY: e.clientY });
+      e.stopPropagation();
+      return;
+    }
+    setSelectedIds(new Set());
     canvasPointerDown(e);
-  }, [canvasPointerDown]);
+  }, [canvasPointerDown, setSelectedId, selectedIds, setSelectedIds]);
 
   const handlePointerMove = useCallback((e) => {
     const cur = dragCtx.current;
@@ -78,16 +109,30 @@ export default function Canvas() {
         if (treeRef.current) pushHistory();
       }
       if (cur.moved) {
-        const node = findNode(treeRef.current, cur.id);
-        if (!node) return;
-        node.x = cur.origX + dx;
-        node.y = cur.origY + dy;
-        setTree({ ...treeRef.current });
+        const t = treeRef.current;
+        const toMove = selectedIds.size > 1 && selectedIds.has(cur.id) ? selectedIds : new Set([cur.id]);
+        toMove.forEach(id => {
+          const n = findNode(t, id);
+          if (!n) return;
+          const origX = cur.id === id ? cur.origX : (n.x - dx);
+          const origY = cur.id === id ? cur.origY : (n.y - dy);
+          n.x = origX + dx;
+          n.y = origY + dy;
+        });
+        setTree({ ...t });
       }
       return;
     }
+    const mq = marqueeRef.current;
+    if (mq) {
+      mq.curX = e.clientX;
+      mq.curY = e.clientY;
+      setMarqueeBox({ startX: mq.startX, startY: mq.startY, curX: e.clientX, curY: e.clientY });
+      e.stopPropagation();
+      return;
+    }
     canvasPointerMove(e);
-  }, [canvasPointerMove, pushHistory, setTree]);
+  }, [canvasPointerMove, pushHistory, setTree, selectedIds]);
 
   const handlePointerUp = useCallback((e) => {
     if (dragCtx.current) {
@@ -100,8 +145,40 @@ export default function Canvas() {
       dragCtx.current = null;
       return;
     }
+    const mq = marqueeRef.current;
+    if (mq) {
+      marqueeRef.current = null;
+      setMarqueeBox(null);
+      const moved = Math.abs(mq.curX - mq.startX) > 5 || Math.abs(mq.curY - mq.startY) > 5;
+      if (moved) {
+        const t = treeRef.current;
+        if (!t) { canvasPointerUp(e); return; }
+        const s = scaleRef.current;
+        const left = Math.min(mq.startX, mq.curX);
+        const right = Math.max(mq.startX, mq.curX);
+        const top = Math.min(mq.startY, mq.curY);
+        const bottom = Math.max(mq.startY, mq.curY);
+        const ids = new Set();
+        const r = mq.rect;
+        visibleIds.forEach(id => {
+          const n = findNode(t, id);
+          if (!n) return;
+          const sx = n.x * s + canvas.x;
+          const sy = n.y * s + r.top;
+          const hw = nodeWidth(n.depth) * s / 2;
+          const nh = nodeHeight(n.depth) * s;
+          if (sx + hw >= left && sx - hw <= right && sy + nh >= top && sy <= bottom) {
+            ids.add(id);
+          }
+        });
+        setSelectedIds(ids);
+        if (ids.size) setSelectedId([...ids][0]);
+      }
+      e.stopPropagation();
+      return;
+    }
     canvasPointerUp(e);
-  }, [canvasPointerUp, persist, setSelectedId, openDrawer]);
+  }, [canvasPointerUp, persist, setSelectedId, openDrawer, visibleIds, canvas.x, setSelectedIds]);
 
   useEffect(() => {
     window.addEventListener('pointermove', handlePointerMove);
@@ -124,12 +201,36 @@ export default function Canvas() {
     return () => wrap.removeEventListener('wheel', onWheel);
   }, [setScale, wrapRef]);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 1) {
+        const t = treeRef.current;
+        if (!t) return;
+        pushHistory();
+        const copy = JSON.parse(JSON.stringify(t));
+        let removed = 0;
+        selectedIds.forEach(id => {
+          if (id === copy.id) return;
+          removeNodeFromTree(copy, id);
+          removed++;
+        });
+        setTree(copy);
+        setSelectedIds(new Set());
+        setSelectedId(null);
+        persist();
+        if (removed) addToast('Deleted ' + removed + ' node(s)', null, { label: 'Undo', onClick: () => undo() });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedIds, pushHistory, setTree, persist, addToast, undo, setSelectedId, setSelectedIds]);
+
   const handleStartEmpty = useCallback(() => {
     const t = makeNode('New project', 'Describe this project, or ask the AI Architect to fill it in.', 0);
     setTree(t);
-    recomputeLayout(t);
+    recomputeLayout(t, layout);
     setTimeout(() => { fitView(); openDrawer(t.id); }, 50);
-  }, [setTree, fitView, openDrawer]);
+  }, [setTree, fitView, openDrawer, layout]);
 
   const nodeCount = tree ? 1 + countDescendants(tree) : 0;
   const depth = tree ? maxDepth(tree) : 0;
@@ -156,6 +257,22 @@ export default function Canvas() {
           ))}
         </div>
       </div>
+
+      {marqueeBox && (
+        <div className="marquee-box" style={{
+          left: Math.min(marqueeBox.startX, marqueeBox.curX) + 'px',
+          top: Math.min(marqueeBox.startY, marqueeBox.curY) + 'px',
+          width: Math.abs(marqueeBox.curX - marqueeBox.startX) + 'px',
+          height: Math.abs(marqueeBox.curY - marqueeBox.startY) + 'px',
+        }} />
+      )}
+
+      {selectedIds.size > 1 && (
+        <div className="selection-badge">
+          <Trash2 size={13} />
+          <span>{selectedIds.size} selected \u2014 Delete to remove</span>
+        </div>
+      )}
 
       <div className={`empty-state${tree ? ' hidden' : ''}`} id="emptyState">
         <div className="empty-icon"><Compass size={30} /></div>

@@ -2,10 +2,9 @@ import { useCallback } from 'react';
 import { useNexus } from '../store/NexusContext';
 import {
   makeNode, findNode, findParent, ancestorPath,
-  normalizeTree, removeNodeFromTree,
-  recomputeLayout, buildTreeOutline
+  positionNewNodes, buildTreeOutline,
 } from '../utils/tree';
-import { REPLY_MARK, ACTIONS_MARK } from '../utils/constants';
+import { REPLY_MARK, ACTIONS_MARK, MAX_VISIBLE_DEPTH } from '../utils/constants';
 
 function parseAIResponse(text) {
   const idx = text.indexOf(ACTIONS_MARK);
@@ -20,23 +19,12 @@ function parseAIResponse(text) {
   return { reply, actions };
 }
 
-function describeActions(actions) {
-  if (!actions.length) return '';
-  const counts = {};
-  actions.forEach(a => { counts[a.type] = (counts[a.type] || 0) + 1; });
-  const parts = [];
-  if (counts.set_tree) parts.push('drafted the map');
-  if (counts.add_children) parts.push('added items');
-  if (counts.update_node) parts.push('updated ' + counts.update_node + ' node(s)');
-  if (counts.delete_node) parts.push('removed ' + counts.delete_node + ' node(s)');
-  return parts.length ? ('Map updated \u2014 ' + parts.join(', ') + '.') : '';
-}
-
 export function useAI() {
   const {
-    tree, setTree, chat, setChat, model,
+    tree, setTree, chat, setChat, model, layout,
     pushHistory, persist, setBusy, addToast, fitView,
-    setRecentlyAddedIds,
+    setRecentlyAddedIds, setIsolatedId,
+    setPendingActions,
   } = useNexus();
 
   const sendChatMessage = useCallback(async (userText) => {
@@ -64,6 +52,8 @@ export function useAI() {
         '',
         'You also use the W-Fragen (W-questions) framework to help the user think through their plan completely: Was (what), Wer (who), Wann (when), Wo (where), Warum (why), Wie (how), Wie viel (how much / budget). When the user is vague, ask or infer these dimensions and structure the tree around the gaps. Every branch should eventually answer one or more of these questions so the plan is concrete, not abstract.',
         '',
+        'IMPORTANT \u2014 Always reply in the exact same language as the user\u2019s current message. If they write in French, reply in French; if English, reply in English. Never switch languages mid-conversation.',
+        '',
         'Analyze the user\u2019s language, domain, and goals. Pick the most natural technique, apply its structure, and briefly name it in your reply. Be warm, clear, and human \u2014 talk like a thoughtful collaborator who\u2019s genuinely excited to help bring their idea to life. No robotic lists or jargon unless the user uses it first.',
         '',
         'CURRENT MAP:',
@@ -82,51 +72,6 @@ export function useAI() {
         '',
         'Every leaf node must be a clear, executable statement \u2014 something someone can actually do: "Design database schema", "Implement login endpoint", "Write unit tests for X". Avoid vague or abstract labels. Each node should resolve a concrete sub-task that brings the full project to life. Descriptions: one concise sentence explaining the how or why. Titles: 2-6 words, starting with a verb where possible. A new map starts with 1 core + 3-5 branches, each with 2-4 leaves. Reply in the same language the user is writing in.'
       ].join('\n');
-    }
-
-    function applyActions(actions) {
-      let current = tree;
-      let replaced = false;
-      actions.forEach(act => {
-        if (!act || typeof act !== 'object') return;
-        switch (act.type) {
-          case 'set_tree':
-            if (act.tree) {
-              const t = normalizeTree(act.tree, 0);
-              recomputeLayout(t);
-              setTree(t);
-              current = t;
-              replaced = true;
-            }
-            break;
-          case 'add_children': {
-            const parent = act.parentId === 'root' ? current : findNode(current, act.parentId);
-            if (parent && Array.isArray(act.children) && act.children.length) {
-              parent.children = parent.children || [];
-              act.children.slice(0, 6).forEach(c => {
-                parent.children.push(makeNode(c?.title, c?.description, parent.depth + 1));
-              });
-              parent.collapsed = false;
-            }
-            break;
-          }
-          case 'update_node': {
-            const n = act.nodeId === 'root' ? current : findNode(current, act.nodeId);
-            if (n) {
-              if (act.title) n.title = String(act.title).trim() || n.title;
-              if (act.description !== undefined) n.description = String(act.description || '').trim();
-            }
-            break;
-          }
-          case 'delete_node':
-            if (act.nodeId && act.nodeId !== 'root') removeNodeFromTree(current, act.nodeId);
-            break;
-        }
-      });
-      if (current && !replaced) {
-        recomputeLayout(current);
-        setTree({ ...current });
-      }
     }
 
     setChat(prev => [...prev, { role: 'user', text: userText }]);
@@ -167,26 +112,15 @@ export function useAI() {
 
       if (actions && actions.length) {
         pushHistory();
-        applyActions(actions);
+        setPendingActions({ actions, reply, layout });
+      } else {
+        setChat(prev => {
+          const last = prev[prev.length - 1];
+          if (last) { last.pending = false; last.text = reply || ''; }
+          return [...prev];
+        });
+        persist();
       }
-
-      setChat(prev => {
-        const last = prev[prev.length - 1];
-        if (last) {
-          last.pending = false;
-          last.text = reply || full.split(REPLY_MARK).join('').trim() || 'Done.';
-          if (actions && actions.length) {
-            last.actionsApplied = describeActions(actions);
-          }
-        }
-        return [...prev];
-      });
-
-      if (actions && actions.length && tree) {
-        setTimeout(() => fitView(), 50);
-        addToast(describeActions(actions));
-      }
-      persist();
     } catch (err) {
       setChat(prev => {
         const last = prev[prev.length - 1];
@@ -197,7 +131,7 @@ export function useAI() {
     } finally {
       setBusy(false);
     }
-  }, [tree, chat, model, setChat, setBusy, addToast, pushHistory, persist, fitView, setTree]);
+  }, [tree, chat, model, layout, setChat, setBusy, addToast, pushHistory, persist, setPendingActions]);
 
   const expandNodeAI = useCallback(async (nodeId) => {
     const node = findNode(tree, nodeId);
@@ -210,6 +144,8 @@ export function useAI() {
     node.expanding = true;
     setTree({ ...tree });
 
+    const recentMsgs = chat.filter(m => m.role === 'user').slice(-2).map(m => m.text);
+    const langHint = recentMsgs.length ? ('The conversation is in the same language as these recent messages:\n' + recentMsgs.join('\n')) : 'Use the same language as the project title and existing nodes.';
     const path = ancestorPath(tree, node).join(' \u203A ');
     const parent = findParent(tree, node.id);
     const siblings = parent ? (parent.children || []).filter(c => c.id !== node.id).map(c => c.title) : [];
@@ -220,8 +156,9 @@ export function useAI() {
     ];
     if (siblings.length) lines.push('Existing sibling items (avoid duplicating): ' + siblings.join(', '));
     lines.push('');
+    lines.push('IMPORTANT — ' + langHint);
+    lines.push('');
     lines.push('Break down "' + node.title + '" into 3 to 5 concrete, actionable sub-items that bring it to life. Each must be something someone can actually do (e.g. "Design API schema", not "API design"). Respond with ONLY a JSON array, no commentary or markdown fences: [{"title":"...","description":"one concise sentence"}]');
-    lines.push('Reply in the same language as the titles above.');
     const prompt = lines.join('\n');
 
     try {
@@ -241,7 +178,10 @@ export function useAI() {
         node.children.push(child);
       });
       node.collapsed = false;
-      recomputeLayout(tree);
+      if (node.depth >= MAX_VISIBLE_DEPTH - 1) {
+        setIsolatedId(node.id);
+      }
+      positionNewNodes(node);
       setRecentlyAddedIds(newIds);
       setTree({ ...tree });
       setTimeout(() => { fitView(); }, 50);
@@ -255,7 +195,7 @@ export function useAI() {
       setBusy(false);
       setTree({ ...tree });
     }
-  }, [tree, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds]);
+  }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId]);
 
   const elaborateNodeAI = useCallback(async (nodeId, onContent) => {
     const node = findNode(tree, nodeId);
@@ -266,14 +206,17 @@ export function useAI() {
     }
     setBusy(true);
 
+    const recentMsgs = chat.filter(m => m.role === 'user').slice(-2).map(m => m.text);
+    const langHint = recentMsgs.length ? ('The conversation is in the same language as these recent messages:\n' + recentMsgs.join('\n')) : 'Use the same language as the project title and existing nodes.';
     const path = ancestorPath(tree, node).join(' \u203A ');
     const prompt = [
       'Project: "' + tree.title + '"',
       'Component: ' + path,
       'Existing notes: ' + (node.description || '(none yet)'),
       '',
+      'IMPORTANT — ' + langHint,
+      '',
       'Write a focused elaboration for "' + node.title + '" as plain markdown: one short paragraph, then 3-5 bullet points covering concrete deliverables, considerations, or next steps. No heading, no preamble, no markdown fences.',
-      'Reply in the same language as the project title.'
     ].join('\n');
 
     try {
@@ -288,9 +231,7 @@ export function useAI() {
     } finally {
       setBusy(false);
     }
-  }, [tree, model, setBusy, addToast]);
+  }, [tree, chat, model, setBusy, addToast]);
 
   return { sendChatMessage, expandNodeAI, elaborateNodeAI };
 }
-
-export { REPLY_MARK, ACTIONS_MARK };

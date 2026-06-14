@@ -1,5 +1,5 @@
 import { generateId, nodeWidth, nodeHeight, truncate } from './helpers';
-import { H_GAP, ROW_GAP } from './constants';
+import { H_GAP, ROW_GAP, MAX_VISIBLE_DEPTH } from './constants';
 
 export function makeNode(title, description, depth) {
   return {
@@ -97,30 +97,118 @@ function computeWidth(node) {
   return Math.max(nodeWidth(node.depth), total);
 }
 
-export function layoutNode(node, leftX) {
+export function layoutTree(node, leftX) {
   const w = computeWidth(node);
   node.x = leftX + w / 2;
   node.y = getRowY(node.depth);
   if (!node.collapsed && node.children?.length) {
     const childrenTotal = node.children.reduce((a, c) => a + computeWidth(c), 0) + H_GAP * (node.children.length - 1);
     let cx = leftX + (w - childrenTotal) / 2;
-    node.children.forEach(c => { const cw = computeWidth(c); layoutNode(c, cx); cx += cw + H_GAP; });
+    node.children.forEach(c => { const cw = computeWidth(c); layoutTree(c, cx); cx += cw + H_GAP; });
   }
 }
 
-export function recomputeLayout(tree) {
-  if (!tree) return;
-  layoutNode(tree, 0);
+function subtreeHeight(node) {
+  if (!node.children?.length || node.collapsed) return nodeHeight(node.depth) + ROW_GAP;
+  return node.children.reduce((s, c) => s + subtreeHeight(c), 0);
 }
 
-export function placeNewChildren(parent) {
-  const rowY = getRowY(parent.depth + 1);
-  const w = nodeWidth(parent.depth + 1);
+export function layoutRoot(node, x, y) {
+  const w = nodeWidth(node.depth);
+  const h = nodeHeight(node.depth);
+  node.x = x + w / 2;
+  node.y = y - h / 2;
+  if (!node.collapsed && node.children?.length) {
+    const childX = x + w + H_GAP * 2;
+    const heights = node.children.map(c => subtreeHeight(c));
+    const totalH = heights.reduce((a, b) => a + b, 0);
+    let cy = y - totalH / 2;
+    node.children.forEach((c, i) => {
+      const ch = heights[i];
+      layoutRoot(c, childX, cy + ch / 2);
+      cy += ch;
+    });
+  }
+}
+
+export function layoutTwoSided(node, x, y) {
+  const w = nodeWidth(node.depth);
+  const h = nodeHeight(node.depth);
+  node.x = x + w / 2;
+  node.y = y - h / 2;
+  if (!node.collapsed && node.children?.length) {
+    const mid = Math.ceil(node.children.length / 2);
+    const left = node.children.slice(0, mid);
+    const right = node.children.slice(mid);
+    const heights = node.children.map(c => subtreeHeight(c));
+    const leftH = heights.slice(0, mid);
+    const rightH = heights.slice(mid);
+    const leftTotal = leftH.reduce((a, b) => a + b, 0);
+    const rightTotal = rightH.reduce((a, b) => a + b, 0);
+    const gap = H_GAP * 2 + w / 2;
+    let ly = y - leftTotal / 2;
+    left.forEach((c, i) => {
+      const ch = leftH[i];
+      layoutRoot(c, x + w / 2 - gap - nodeWidth(c.depth), ly + ch / 2);
+      ly += ch;
+    });
+    let ry = y - rightTotal / 2;
+    right.forEach((c, i) => {
+      const ch = rightH[i];
+      layoutRoot(c, x + w / 2 + gap, ry + ch / 2);
+      ry += ch;
+    });
+  }
+}
+
+export function layoutStar(node, cx, cy, level, angleCenter, angleSpan) {
+  node.x = cx;
+  node.y = cy - nodeHeight(node.depth) / 2;
+  if (!node.collapsed && node.children?.length) {
+    const n = node.children.length;
+    const r = H_GAP * 3 + nodeWidth(node.depth);
+    const childR = r + level * H_GAP * 2.5;
+    const childSpan = angleSpan / n;
+    const startAngle = angleCenter - angleSpan / 2;
+    node.children.forEach((c, i) => {
+      const a = startAngle + childSpan * (i + 0.5);
+      const childCX = cx + childR * Math.cos(a);
+      const childCY = cy + childR * Math.sin(a);
+      layoutStar(c, childCX, childCY, level + 1, a, childSpan);
+    });
+  }
+}
+
+export function recomputeLayout(tree, layout) {
+  if (!tree) return;
+  switch (layout) {
+    case 'root':
+      layoutRoot(tree, 0, 200);
+      break;
+    case 'two-sided':
+      layoutTwoSided(tree, 0, 200);
+      break;
+    case 'star':
+      layoutStar(tree, 0, 200, 0, 0, 2 * Math.PI);
+      break;
+    default:
+      layoutTree(tree, 0);
+  }
+}
+
+export function positionNewNodes(parent) {
   const newOnes = (parent.children || []).filter(c => c.x == null);
   if (!newOnes.length) return;
-  const totalW = newOnes.length * w + (newOnes.length - 1) * H_GAP;
-  let startX = parent.x - totalW / 2;
-  newOnes.forEach(c => { c.x = startX + w / 2; c.y = rowY; startX += w + H_GAP; });
+  const total = newOnes.length;
+  const w = nodeWidth(parent.depth + 1);
+  const totalW = total * w + (total - 1) * H_GAP;
+  const y = parent.y + nodeHeight(parent.depth) + ROW_GAP;
+  let x = parent.x - totalW / 2;
+  newOnes.forEach(c => {
+    c.x = x + w / 2;
+    c.y = y;
+    x += w + H_GAP;
+  });
 }
 
 export function getVisibleIds(tree, isolatedId) {
@@ -150,6 +238,54 @@ export function buildTreeOutline(node, depth) {
   let lines = [indent + '- [' + node.id + '] ' + node.title + desc];
   (node.children || []).forEach(c => { lines = lines.concat(buildTreeOutline(c, depth + 1)); });
   return lines;
+}
+
+export function applyActions(tree, actions, layout) {
+  let current = tree;
+  let replaced = false;
+  let newIsolatedId = null;
+  actions.forEach(act => {
+    if (!act || typeof act !== 'object') return;
+    switch (act.type) {
+      case 'set_tree':
+        if (act.tree) {
+          const t = normalizeTree(act.tree, 0);
+          recomputeLayout(t, layout);
+          current = t;
+          replaced = true;
+        }
+        break;
+      case 'add_children': {
+        const parent = act.parentId === 'root' ? current : findNode(current, act.parentId);
+        if (parent && Array.isArray(act.children) && act.children.length) {
+          parent.children = parent.children || [];
+          act.children.slice(0, 6).forEach(c => {
+            parent.children.push(makeNode(c?.title, c?.description, parent.depth + 1));
+          });
+          parent.collapsed = false;
+          positionNewNodes(parent);
+          if (parent.depth >= MAX_VISIBLE_DEPTH - 1 && parent.id !== 'root') {
+            newIsolatedId = parent.id;
+          }
+        }
+        break;
+      }
+      case 'update_node': {
+        const n = act.nodeId === 'root' ? current : findNode(current, act.nodeId);
+        if (n) {
+          if (act.title) n.title = String(act.title).trim() || n.title;
+          if (act.description !== undefined) n.description = String(act.description || '').trim();
+        }
+        break;
+      }
+      case 'delete_node':
+        if (act.nodeId && act.nodeId !== 'root') removeNodeFromTree(current, act.nodeId);
+        break;
+    }
+  });
+  if (!current) current = tree;
+  if (current && !replaced) current = { ...current };
+  return { tree: current, isolatedId: newIsolatedId, replaced };
 }
 
 export function getBounds(root) {

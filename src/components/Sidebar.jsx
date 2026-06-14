@@ -3,7 +3,7 @@ import { useNexus } from '../store/NexusContext';
 import { useAI } from '../hooks/useAI';
 import { MODELS, SUGGESTIONS } from '../utils/constants';
 import { escapeHtml, renderInline } from '../utils/helpers';
-import { Compass, User, Brain, ChevronRight, GitCommitHorizontal, Send } from 'lucide-react';
+import { Compass, User, Brain, ChevronRight, GitCommitHorizontal, Send, X } from 'lucide-react';
 
 export default function Sidebar() {
   const { tree, chat, model, setModel, busy, persist } = useNexus();
@@ -53,15 +53,26 @@ export default function Sidebar() {
             <p>Your thinking partner</p>
           </div>
         </div>
-        <select
-          className="model-select"
-          value={model}
-          onChange={(e) => { setModel(e.target.value); persist(); }}
-        >
-          {MODELS.map(m => (
-            <option key={m.id} value={m.id}>{m.label}</option>
-          ))}
-        </select>
+        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+          <select
+            className="model-select"
+            value={model}
+            onChange={(e) => { setModel(e.target.value); persist(); }}
+          >
+            {MODELS.map(m => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+          <button className="icon-btn" title="Hide sidebar" onClick={() => {
+            if (window.innerWidth <= 1100) {
+              document.body.classList.remove('sidebar-open');
+            } else {
+              document.body.classList.toggle('sidebar-hidden');
+            }
+          }}>
+            <X size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="chat-messages" id="chatMessages">

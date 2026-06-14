@@ -14,7 +14,9 @@ import {
 export default function MindNode({ node }) {
   const {
     tree, setTree, isolatedId, setIsolatedId, selectedId, setSelectedId,
-    recentlyAddedIds, pushHistory, openDrawer, persist, addToast, fitView, undo,
+    selectedIds,
+    recentlyAddedIds, pushHistory, openDrawer, persist, addToast, fitView, undo, layout,
+    searchQuery,
   } = useNexus();
   const { expandNodeAI } = useAI();
 
@@ -25,10 +27,16 @@ export default function MindNode({ node }) {
   const kindLabel = node.depth === 0 ? 'PROJECT' : node.depth === 1 ? 'BRANCH' : 'ITEM';
   const descMax = node.depth === 0 ? 170 : 110;
 
+  const q = searchQuery.toLowerCase().trim();
+  const isMatch = q && (
+    node.title.toLowerCase().includes(q) ||
+    (node.description && node.description.toLowerCase().includes(q))
+  );
   const classes = ['mind-node', depthClass];
+  if (isMatch) classes.push('matched');
   if (recentlyAddedIds.has(node.id)) classes.push('is-new');
   if (node.expanding) classes.push('is-busy');
-  if (selectedId === node.id) classes.push('selected');
+  if (selectedId === node.id || selectedIds.has(node.id)) classes.push('selected');
 
   const style = {
     left: node.x + 'px',
@@ -43,6 +51,10 @@ export default function MindNode({ node }) {
 
   const handleAddChild = useCallback((e) => {
     e.stopPropagation();
+    if (node.depth >= 2) {
+      setIsolatedId(node.id);
+      setTimeout(fitView, 50);
+    }
     pushHistory();
     const t = JSON.parse(JSON.stringify(tree));
     const n = findNode(t, node.id);
@@ -51,7 +63,7 @@ export default function MindNode({ node }) {
     n.children = n.children || [];
     n.children.push(child);
     n.collapsed = false;
-    recomputeLayout(t);
+    recomputeLayout(t, layout);
     setTree(t);
     persist();
     openDrawer(child.id);
@@ -60,7 +72,7 @@ export default function MindNode({ node }) {
       el?.focus();
       el?.select();
     }, 100);
-  }, [node.id, tree, setTree, pushHistory, persist, openDrawer]);
+  }, [node.id, node.depth, tree, setTree, pushHistory, persist, openDrawer, layout, setIsolatedId, fitView]);
 
   const handleToggleCollapse = useCallback((e) => {
     e.stopPropagation();
@@ -69,10 +81,10 @@ export default function MindNode({ node }) {
     const n = findNode(t, node.id);
     if (!n) return;
     n.collapsed = !n.collapsed;
-    recomputeLayout(t);
+    recomputeLayout(t, layout);
     setTree(t);
     persist();
-  }, [node.id, hasChildren, tree, setTree, persist]);
+  }, [node.id, hasChildren, tree, setTree, persist, layout]);
 
   const handleIsolate = useCallback((e) => {
     e.stopPropagation();
