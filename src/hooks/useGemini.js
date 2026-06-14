@@ -1,4 +1,5 @@
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const $fetch = () => (typeof window.__nativeFetch === 'function' ? window.__nativeFetch : fetch);
 
 function buildContents(messages) {
   const contents = [];
@@ -12,7 +13,7 @@ function buildContents(messages) {
   return contents;
 }
 
-export async function geminiChat(messages, { model = 'gemini-2.0-flash', stream = false, apiKey } = {}) {
+export async function geminiChat(messages, { model = 'gemini-2.5-flash', stream = false, apiKey } = {}) {
   if (!apiKey) throw new Error('Gemini API key is required');
 
   const contents = buildContents(messages);
@@ -21,7 +22,7 @@ export async function geminiChat(messages, { model = 'gemini-2.0-flash', stream 
   const body = { contents };
 
   if (stream) {
-    const resp = await fetch(url, {
+    const resp = await $fetch()(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -59,7 +60,7 @@ export async function geminiChat(messages, { model = 'gemini-2.0-flash', stream 
     };
   }
 
-  const resp = await fetch(url, {
+  const resp = await $fetch()(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -72,7 +73,7 @@ export async function geminiChat(messages, { model = 'gemini-2.0-flash', stream 
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-export async function geminiChatSync(prompt, { model = 'gemini-2.0-flash', apiKey } = {}) {
+export async function geminiChatSync(prompt, { model = 'gemini-2.5-flash', apiKey } = {}) {
   const messages = [{ role: 'user', content: prompt }];
   return geminiChat(messages, { model, apiKey });
 }

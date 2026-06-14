@@ -25,7 +25,11 @@ async function tryAI(messages, opts) {
     try { return await window.puter.ai.chat(messages, opts); } catch { /* fall through */ }
   }
   if (opts.apiKey) {
-    try { return await geminiChat(messages, opts); } catch { /* fall through */ }
+    try {
+      return await geminiChat(messages, { ...opts, model: 'gemini-2.5-flash' });
+    } catch (e) {
+      console.error('Gemini fallback failed:', e);
+    }
   }
   return null;
 }
@@ -35,7 +39,11 @@ async function tryAISync(prompt, opts) {
     try { return await window.puter.ai.chat(prompt, opts); } catch { /* fall through */ }
   }
   if (opts.apiKey) {
-    try { return await geminiChat([{ role: 'user', content: prompt }], { ...opts, stream: false }); } catch { /* fall through */ }
+    try {
+      return await geminiChat([{ role: 'user', content: prompt }], { ...opts, model: 'gemini-2.5-flash', stream: false });
+    } catch (e) {
+      console.error('Gemini fallback failed:', e);
+    }
   }
   return null;
 }
