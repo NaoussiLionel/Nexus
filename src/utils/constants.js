@@ -12,10 +12,10 @@ export const MODELS = [
 export const DEFAULT_MODEL = MODELS[0].id;
 
 export const SUGGESTIONS = [
-  'Launch a mobile app from scratch',
-  'Build a brand identity system',
-  'Plan a community event',
-  'Open a small restaurant',
+  'I want to launch a mobile app \u2014 where do I start?',
+  'Help me build a brand identity from scratch',
+  'Plan a community event with me',
+  'Walk me through opening a small restaurant',
 ];
 
 export const H_GAP = 40;

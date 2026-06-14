@@ -43,7 +43,7 @@ export function useAI() {
     userText = (userText || '').trim();
     if (!userText) return;
     if (typeof window.puter === 'undefined' || !window.puter.ai) {
-      addToast('AI engine failed to load \u2014 check your connection and reload.', 'error');
+      addToast('Couldn\u2019t reach the AI \u2014 check your connection and try again.', 'error');
       return;
     }
 
@@ -64,14 +64,14 @@ export function useAI() {
         '',
         'You also use the W-Fragen (W-questions) framework to help the user think through their plan completely: Was (what), Wer (who), Wann (when), Wo (where), Warum (why), Wie (how), Wie viel (how much / budget). When the user is vague, ask or infer these dimensions and structure the tree around the gaps. Every branch should eventually answer one or more of these questions so the plan is concrete, not abstract.',
         '',
-        'Analyze the user\u2019s language, domain, and goals. Pick the most natural technique, apply its structure, and briefly name it in your reply.',
+        'Analyze the user\u2019s language, domain, and goals. Pick the most natural technique, apply its structure, and briefly name it in your reply. Be warm, clear, and human \u2014 talk like a thoughtful collaborator who\u2019s genuinely excited to help bring their idea to life. No robotic lists or jargon unless the user uses it first.',
         '',
         'CURRENT MAP:',
         outline,
         '',
         'Respond in exactly this two-part format and nothing else \u2014 no extra commentary outside these two markers:',
         REPLY_MARK,
-        '<a short, helpful message (1-4 sentences, plain text, no headers) that names the technique you chose and what you did>',
+        '<a short, warm reply (1-3 sentences, plain text) that names the technique you chose, what you did, and invites the next step. Natural language \u2014 like you\u2019re sitting next to them.>',
         ACTIONS_MARK,
         '<a JSON array of actions to apply to the map, or [] for none. Allowed action objects:',
         '{"type":"set_tree","tree":{"title":"...","description":"...","children":[{"title":"...","description":"...","children":[...]}]}}  (use ONLY to create the very first map, or to fully restructure it)',
@@ -193,7 +193,7 @@ export function useAI() {
         if (last) { last.pending = false; last.error = true; last.text = 'Connection error \u2014 ' + (err?.message || 'please try again.'); }
         return [...prev];
       });
-      addToast('AI error: ' + (err?.message || err), 'error');
+      addToast('AI hit a snag: ' + (err?.message || 'try again in a moment'), 'error');
     } finally {
       setBusy(false);
     }
@@ -203,7 +203,7 @@ export function useAI() {
     const node = findNode(tree, nodeId);
     if (!node) return;
     if (typeof window.puter === 'undefined' || !window.puter.ai) {
-      addToast('AI engine failed to load.', 'error');
+      addToast('AI isn\u2019t available right now.', 'error');
       return;
     }
     setBusy(true);
@@ -220,7 +220,7 @@ export function useAI() {
     ];
     if (siblings.length) lines.push('Existing sibling items (avoid duplicating): ' + siblings.join(', '));
     lines.push('');
-    lines.push('Break down "' + node.title + '" into 3 to 5 concrete, executable sub-items that flesh out its description. Each must be an action someone can take (e.g. "Design API schema", not "API design"). Respond with ONLY a JSON array, no commentary or markdown fences: [{"title":"...","description":"one concise sentence"}]');
+    lines.push('Break down "' + node.title + '" into 3 to 5 concrete, actionable sub-items that bring it to life. Each must be something someone can actually do (e.g. "Design API schema", not "API design"). Respond with ONLY a JSON array, no commentary or markdown fences: [{"title":"...","description":"one concise sentence"}]');
     lines.push('Reply in the same language as the titles above.');
     const prompt = lines.join('\n');
 
@@ -246,10 +246,10 @@ export function useAI() {
       setTree({ ...tree });
       setTimeout(() => { fitView(); }, 50);
       persist();
-      addToast('Added ' + items.length + ' item(s) to "' + node.title + '"');
+      addToast('Added ' + items.length + ' idea(s) to "' + node.title + '"');
       setTimeout(() => { setRecentlyAddedIds(new Set()); }, 1100);
     } catch (err) {
-      addToast('AI error: ' + (err?.message || err), 'error');
+      addToast('AI hit a snag: ' + (err?.message || 'try again in a moment'), 'error');
     } finally {
       node.expanding = false;
       setBusy(false);
@@ -261,7 +261,7 @@ export function useAI() {
     const node = findNode(tree, nodeId);
     if (!node) return;
     if (typeof window.puter === 'undefined' || !window.puter.ai) {
-      addToast('AI engine failed to load.', 'error');
+      addToast('AI isn\u2019t available right now.', 'error');
       return;
     }
     setBusy(true);
@@ -284,7 +284,7 @@ export function useAI() {
       }
       if (!full.trim()) throw new Error('empty response');
     } catch (err) {
-      addToast('AI error: ' + (err?.message || err), 'error');
+      addToast('AI hit a snag: ' + (err?.message || 'try again in a moment'), 'error');
     } finally {
       setBusy(false);
     }

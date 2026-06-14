@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { useNexus } from '../store/NexusContext';
 import {
   recomputeLayout, stripForExport, normalizeTree
@@ -19,20 +19,24 @@ export default function Header() {
   const importRef = useRef(null);
   const has = !!tree;
 
+  useEffect(() => {
+    document.title = tree ? `${tree.title} — Nexus Architect` : 'Nexus Architect — AI Project Planning Canvas';
+  }, [tree]);
+
   const handleArrange = useCallback(() => {
     if (!tree) return;
     pushHistory();
     recomputeLayout(tree);
     setTree({ ...tree });
     persist();
-    addToast('Layout arranged');
-  }, [tree, pushHistory, setTree, persist, addToast]);
+    addToast('All tidied up');
+    }, [tree, pushHistory, setTree, persist, addToast]);
 
   const handleReset = useCallback(() => {
     if (!has) return;
     if (!resetArmed) {
       setResetArmed(true);
-      addToast('Click "Clear" again to erase this project');
+      addToast('Tap "Clear" once more to wipe the slate clean');
       clearTimeout(resetTimer.current);
       resetTimer.current = setTimeout(() => setResetArmed(false), 4000);
     } else {
@@ -46,7 +50,7 @@ export default function Header() {
   const handleExportJSON = useCallback(() => {
     if (!tree) return;
     downloadFile(JSON.stringify(stripForExport(tree), null, 2), sanitizeFilename(tree.title) + '.json', 'application/json');
-    addToast('Exported JSON');
+    addToast('Exported as JSON');
   }, [tree, addToast]);
 
   const handleExportMD = useCallback(() => {
@@ -63,7 +67,7 @@ export default function Header() {
       (node.children || []).forEach(c => walk(c, depth + 1));
     })(tree, 0);
     downloadFile(lines.join('\n') + '\n', sanitizeFilename(tree.title) + '.md', 'text/markdown');
-    addToast('Exported outline');
+    addToast('Exported as outline');
   }, [tree, addToast]);
 
   const handleImport = useCallback((e) => {
@@ -82,7 +86,7 @@ export default function Header() {
         persist();
         addToast('Project imported');
       } catch {
-        addToast('Could not read that file \u2014 expected a Nexus Architect JSON export.', 'error');
+        addToast('Hmm, couldn\u2019t read that file \u2014 it needs to be a Nexus Architect JSON export.', 'error');
       }
     };
     reader.readAsText(file);
@@ -99,7 +103,7 @@ export default function Header() {
         <div className="brand-mark"><Compass size={19} /></div>
         <div className="brand-text">
           <h1>NEXUS <span>ARCHITECT</span></h1>
-          <p>AI Project Planning Canvas</p>
+          <p>Plan with purpose</p>
         </div>
       </div>
       <div className="header-actions">

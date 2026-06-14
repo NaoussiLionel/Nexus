@@ -16,6 +16,7 @@ export default function Connectors() {
       if (!node) return;
       const parent = findParent(tree, id);
       if (!parent || !visible.has(parent.id)) return;
+      if (parent.x == null || node.x == null || parent.y == null || node.y == null) return;
       const ph = nodeHeight(parent.depth);
       const x1 = parent.x, y1 = parent.y + ph;
       const x2 = node.x, y2 = node.y;

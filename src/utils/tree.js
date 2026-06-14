@@ -4,7 +4,7 @@ import { H_GAP, ROW_GAP } from './constants';
 export function makeNode(title, description, depth) {
   return {
     id: generateId(),
-    title: (title || '').trim() || (depth === 0 ? 'Untitled project' : 'Untitled'),
+    title: (title || '').trim() || (depth === 0 ? 'New project' : 'New idea'),
     description: (description || '').trim(),
     depth, collapsed: false, x: null, y: null, children: []
   };

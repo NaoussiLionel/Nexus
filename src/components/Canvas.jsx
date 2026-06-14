@@ -18,6 +18,11 @@ export default function Canvas() {
   const { wrapRef, onPointerDown: canvasPointerDown, onPointerMove: canvasPointerMove,
           onPointerUp: canvasPointerUp } = useCanvas();
   const dragCtx = useRef(null);
+  const treeRef = useRef(tree);
+  const scaleRef = useRef(canvas.scale);
+
+  useEffect(() => { treeRef.current = tree; });
+  useEffect(() => { scaleRef.current = canvas.scale; });
 
   const visibleIds = useMemo(() =>
     tree ? getVisibleIds(tree, isolatedId) : new Set(),
@@ -50,7 +55,7 @@ export default function Canvas() {
       if (e.target.closest('.action-btn, .collapse-toggle')) return;
       const id = nodeEl.dataset.id;
       if (!id) return;
-      const node = findNode(tree, id);
+      const node = findNode(treeRef.current, id);
       if (!node) return;
       dragCtx.current = {
         id, startX: e.clientX, startY: e.clientY,
@@ -60,32 +65,34 @@ export default function Canvas() {
       return;
     }
     canvasPointerDown(e);
-  }, [tree, canvasPointerDown]);
+  }, [canvasPointerDown]);
 
   const handlePointerMove = useCallback((e) => {
-    if (dragCtx.current) {
-      const dx = (e.clientX - dragCtx.current.startX) / canvas.scale;
-      const dy = (e.clientY - dragCtx.current.startY) / canvas.scale;
-      if (!dragCtx.current.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-        dragCtx.current.moved = true;
-        if (tree) pushHistory();
+    const cur = dragCtx.current;
+    if (cur) {
+      const s = scaleRef.current;
+      const dx = (e.clientX - cur.startX) / s;
+      const dy = (e.clientY - cur.startY) / s;
+      if (!cur.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        cur.moved = true;
+        if (treeRef.current) pushHistory();
       }
-      if (dragCtx.current.moved) {
-        const node = findNode(tree, dragCtx.current.id);
+      if (cur.moved) {
+        const node = findNode(treeRef.current, cur.id);
         if (!node) return;
-        node.x = dragCtx.current.origX + dx;
-        node.y = dragCtx.current.origY + dy;
-        setTree({ ...tree });
+        node.x = cur.origX + dx;
+        node.y = cur.origY + dy;
+        setTree({ ...treeRef.current });
       }
       return;
     }
     canvasPointerMove(e);
-  }, [tree, canvas.scale, canvasPointerMove, pushHistory, setTree]);
+  }, [canvasPointerMove, pushHistory, setTree]);
 
   const handlePointerUp = useCallback((e) => {
     if (dragCtx.current) {
       if (!dragCtx.current.moved) {
-        const node = findNode(tree, dragCtx.current.id);
+        const node = findNode(treeRef.current, dragCtx.current.id);
         if (node) { setSelectedId(node.id); openDrawer(node.id); }
       } else {
         persist();
@@ -94,7 +101,7 @@ export default function Canvas() {
       return;
     }
     canvasPointerUp(e);
-  }, [tree, canvasPointerUp, persist, setSelectedId, openDrawer]);
+  }, [canvasPointerUp, persist, setSelectedId, openDrawer]);
 
   useEffect(() => {
     window.addEventListener('pointermove', handlePointerMove);
@@ -111,11 +118,11 @@ export default function Canvas() {
     const onWheel = (e) => {
       e.preventDefault();
       const factor = Math.exp(-e.deltaY * 0.0015);
-      setScale(canvas.scale * factor, e.clientX, e.clientY);
+      setScale(scaleRef.current * factor, e.clientX, e.clientY);
     };
     wrap.addEventListener('wheel', onWheel, { passive: false });
     return () => wrap.removeEventListener('wheel', onWheel);
-  }, [canvas.scale, setScale, wrapRef]);
+  }, [setScale, wrapRef]);
 
   const handleStartEmpty = useCallback(() => {
     const t = makeNode('New project', 'Describe this project, or ask the AI Architect to fill it in.', 0);
@@ -152,10 +159,10 @@ export default function Canvas() {
 
       <div className={`empty-state${tree ? ' hidden' : ''}`} id="emptyState">
         <div className="empty-icon"><Compass size={30} /></div>
-        <h2>Blank sheet</h2>
-        <p>Describe your project to the AI Architect on the right, and it will draft the first plan — or start with an empty sheet and build it your way.</p>
+        <h2>What are we building today?</h2>
+        <p>Tell the AI Architect on the right what you're working on — it'll sketch out a first plan for you. Or drop a pin on the canvas and start building your way.</p>
         <button className="btn-primary" type="button" onClick={handleStartEmpty}>
-          Start an empty project
+          Start with a blank canvas
         </button>
       </div>
 

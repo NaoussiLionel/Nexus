@@ -61,7 +61,7 @@ export default function DetailsDrawer() {
           <label htmlFor="detailsContent">Notes</label>
           <textarea
             id="detailsContent"
-            placeholder="Add notes here, or let the AI Architect elaborate\u2026"
+            placeholder="Notes, ideas, or questions about this node\u2026"
             value={content}
             onChange={(e) => setContent(e.target.value)}
           />

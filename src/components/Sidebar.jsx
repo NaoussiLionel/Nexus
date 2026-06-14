@@ -50,7 +50,7 @@ export default function Sidebar() {
           </div>
           <div>
             <h3>AI Architect</h3>
-            <p>Conversational planning</p>
+            <p>Your thinking partner</p>
           </div>
         </div>
         <select

@@ -89,7 +89,7 @@ export default function MindNode({ node }) {
     removeNodeFromTree(t, node.id);
     setTree(t);
     persist();
-    addToast(`Deleted "${node.title}"`, null, { label: 'Undo', onClick: () => undo() });
+    addToast('Removed "' + node.title + '"', null, { label: 'Undo', onClick: () => undo() });
   }, [node.id, node.title, tree, setTree, pushHistory, persist, addToast, undo]);
 
   return (

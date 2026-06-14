@@ -15,10 +15,11 @@ export function useCanvas() {
 
   const onPointerMove = useCallback((e) => {
     if (!panCtx.current) return;
+    const { origX, origY, startX, startY } = panCtx.current;
     setCanvas(prev => ({
       ...prev,
-      x: panCtx.current.origX + (e.clientX - panCtx.current.startX),
-      y: panCtx.current.origY + (e.clientY - panCtx.current.startY)
+      x: origX + (e.clientX - startX),
+      y: origY + (e.clientY - startY)
     }));
   }, [setCanvas]);
 
