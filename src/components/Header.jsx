@@ -6,7 +6,7 @@ import {
 import { LAYOUTS } from '../utils/constants';
 import { sanitizeFilename, downloadFile } from '../utils/helpers';
 import {
-  Compass, Undo2, LayoutGrid, Maximize, ZoomOut, ZoomIn,
+  Undo2, LayoutGrid, Maximize, ZoomOut, ZoomIn,
   Download, FileDown, Upload, Trash2, MessageSquare, Search, X
 } from 'lucide-react';
 
@@ -109,39 +109,56 @@ export default function Header() {
   return (
     <header className="app-header">
       <div className="brand">
-        <div className="brand-mark"><Compass size={19} /></div>
+        <div className="brand-mark">
+          <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="8" fill="currentColor" stroke="currentColor" strokeWidth="2" opacity="0.9"/>
+            <circle cx="24" cy="24" r="3" fill="var(--bp-800)"/>
+            <line x1="32" y1="24" x2="43" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+            <line x1="32" y1="24" x2="43" y2="29" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+            <line x1="16" y1="24" x2="5" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+            <line x1="16" y1="24" x2="5" y2="29" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+            <line x1="24" y1="32" x2="24" y2="43" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+            <line x1="24" y1="16" x2="24" y2="5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+            <circle cx="43" cy="19" r="3" fill="currentColor" opacity="0.4"/>
+            <circle cx="43" cy="29" r="3" fill="currentColor" opacity="0.4"/>
+            <circle cx="5" cy="19" r="3" fill="currentColor" opacity="0.4"/>
+            <circle cx="5" cy="29" r="3" fill="currentColor" opacity="0.4"/>
+            <circle cx="24" cy="43" r="3" fill="currentColor" opacity="0.4"/>
+            <circle cx="24" cy="5" r="3" fill="currentColor" opacity="0.4"/>
+          </svg>
+        </div>
         <div className="brand-text">
           <h1>NEXUS <span>ARCHITECT</span></h1>
           <p>Plan with purpose</p>
         </div>
       </div>
       <div className="header-actions">
-        <button className="icon-btn" title="Undo (Ctrl+Z)" disabled={!history.length} onClick={undo}>
+        <button className="icon-btn" aria-label="Undo (Ctrl+Z)" disabled={!history.length} onClick={undo}>
           <Undo2 size={17} />
         </button>
-        <button className="icon-btn" title="Auto-arrange layout" disabled={!has} onClick={handleArrange}>
+        <button className="icon-btn" aria-label="Auto-arrange layout" disabled={!has} onClick={handleArrange}>
           <LayoutGrid size={17} />
         </button>
         <select
           className="layout-select"
+          aria-label="Layout style"
           value={layout}
           onChange={(e) => setLayout(e.target.value)}
           disabled={!has}
-          title="Layout style"
         >
           {LAYOUTS.map(l => (
             <option key={l.id} value={l.id} title={l.desc}>{l.label}</option>
           ))}
         </select>
-        <button className="icon-btn" title="Fit to view" disabled={!has} onClick={fitView}>
+        <button className="icon-btn" aria-label="Fit to view" disabled={!has} onClick={fitView}>
           <Maximize size={17} />
         </button>
-        <div className="zoom-group">
-          <button className="icon-btn" title="Zoom out" onClick={zoomOut}>
+        <div className="zoom-group" role="group" aria-label="Zoom controls">
+          <button className="icon-btn" aria-label="Zoom out" onClick={zoomOut}>
             <ZoomOut size={17} />
           </button>
-          <span id="zoomLevel">{Math.round(canvas.scale * 100)}%</span>
-          <button className="icon-btn" title="Zoom in" onClick={zoomIn}>
+          <span id="zoomLevel" role="status" aria-live="polite">{Math.round(canvas.scale * 100)}%</span>
+          <button className="icon-btn" aria-label="Zoom in" onClick={zoomIn}>
             <ZoomIn size={17} />
           </button>
         </div>
@@ -156,12 +173,12 @@ export default function Header() {
             onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')}
           />
           {searchQuery !== '' && (
-            <button className="icon-btn search-clear" title="Clear search" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
+            <button className="icon-btn search-clear" aria-label="Clear search" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
               <X size={15} />
             </button>
           )}
         </div>
-        <button className={`icon-btn${searchQuery !== '' ? ' active' : ''}`} title="Search nodes" onClick={() => {
+        <button className={`icon-btn${searchQuery !== '' ? ' active' : ''}`} aria-label="Search nodes" onClick={() => {
           const el = searchRef.current;
           if (el) {
             if (document.activeElement === el) { setSearchQuery(''); }
@@ -184,10 +201,10 @@ export default function Header() {
           <input ref={importRef} type="file" accept="application/json" hidden onChange={handleImport} />
         </div>
         <div className="divider" />
-        <button className="btn-danger-ghost" title="Clear this project" disabled={!has} onClick={handleReset}>
+        <button className="btn-danger-ghost" aria-label="Clear this project" disabled={!has} onClick={handleReset}>
           <Trash2 size={15} /><span className="btn-label">Clear</span>
         </button>
-        <button className="icon-btn" title="Toggle AI Architect" onClick={handleSidebarToggle}>
+        <button className="icon-btn" aria-label="Toggle AI Architect" onClick={handleSidebarToggle}>
           <MessageSquare size={17} />
         </button>
       </div>

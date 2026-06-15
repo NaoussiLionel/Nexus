@@ -30,6 +30,8 @@ src/
   hooks/
     useAI.js               — sendChatMessage, expandNodeAI, elaborateNodeAI, language consistency
     useCanvas.js           — pan/drag handlers (stable refs)
+    useGemini.js           — Google Gemini API (fetch, streaming, native fetch bypass)
+    useOpenAI.js           — OpenAI API (fetch, streaming SSE, native fetch bypass)
   utils/
     tree.js                — tree manipulation (makeNode, findNode, layout, applyActions, etc.)
     constants.js           — models, suggestions, layout types, gaps, MAX_VISIBLE_DEPTH
@@ -50,6 +52,8 @@ Key state:
 - `recentlyAddedIds` — Set of node IDs for "new node" animation
 - `searchQuery` — current search term for node filtering
 - `pendingActions` — `{ actions, reply, layout }` awaiting user confirmation
+- `provider` — `'puter' | 'custom'` (persisted to localStorage)
+- `customModel` — model name string (e.g. `'gemini-2.5-flash'`) for custom provider
 
 ## Tree Data Structure
 ```js
@@ -73,9 +77,14 @@ Key state:
 - `positionNewNodes(parent)` — places new children near parent without moving existing nodes (used by AI to preserve manual positions)
 
 ## AI Integration
-- Primary: `puter.ai.chat(messages, {model, stream: true})` for streaming
-- Fallback: Gemini API via fetch (`useGemini.js`) — user provides key in sidebar settings (gear icon), stored in localStorage
-- `tryAI()` / `tryAISync()` helpers in `useAI.js` try puter first, then Gemini; returns null if both fail
+- **Provider toggle**: Sidebar settings has Puter.ai / Custom API toggle (`provider` state in NexusContext, persisted to localStorage)
+- When `provider === 'puter'`: uses `puter.ai.chat(messages, {model, stream: true})` (existing models dropdown in sidebar header)
+- When `provider === 'custom'`: completely bypasses puter — uses custom model name + API key directly, routes by model prefix:
+  - `gemini-*` → `useGemini.js` (Google Gemini API via `window.__nativeFetch`)
+  - `gpt-*` / `o1*` / `o3*` → `useOpenAI.js` (OpenAI API with streaming SSE)
+- `callModelAPI()` in `useAI.js` dispatches to correct backend based on model prefix
+- `tryAI()` / `tryAISync()` check `opts.provider` — skip puter entirely when `provider === 'custom'`
+- All three AI functions (`sendChatMessage`, `expandNodeAI`, `elaborateNodeAI`) guard against no-AI per provider type
 - System prompt in `useAI.js` `buildSystemPrompt()` — 3-level tree, multi-methodology, W-Fragen framework, WBS/Agile/Kanban/Waterfall/CPM/MindMap/OKR
 - AI response parsed for `@@REPLY@@` and `@@ACTIONS@@` markers
 - Actions: `set_tree`, `add_children`, `update_node`, `delete_node`
@@ -84,6 +93,7 @@ Key state:
 - `applyTreeActions` (in `tree.js`) is a pure function used by both `useAI.js` and `NexusContext`
 - IMPORTANT: `applyActions` uses `positionNewNodes` (NOT `recomputeLayout`) for add_children to preserve manual node positions
 - Auto-isolate when adding children to depth >= 2 (MAX_VISIBLE_DEPTH = 3)
+- Native fetch saved before puter script loads: `<script>window.__nativeFetch = fetch.bind(window);</script>` in `index.html` before puter CDN script. Both `useGemini.js` and `useOpenAI.js` use this to bypass puter's fetch interceptor.
 
 ## Node Drag
 - Canvas.jsx handles pointer events with refs (`treeRef`, `scaleRef`)
@@ -99,13 +109,17 @@ Key state:
 - `fitView()` recomputes scale/offset to show all nodes
 
 ## CSS Conventions
-- Single `index.css` file (~470 lines), no CSS modules
+- Single `index.css` file (~550 lines), no CSS modules
 - CSS custom properties for theme (--bp-*, --ink*, --brass*, --paper*)
 - BEM-like naming: `.details-drawer`, `.drawer-header`, `.chat-messages`
 - No Tailwind, no CSS-in-JS
 - Mobile breakpoints at 1100px (sidebar slides in) and 640px (drawer full-width)
 - `.sidebar-open` class on body toggles mobile sidebar
 - `.sidebar-hidden` class collapses desktop sidebar to 0 width
+- `.btn-loading` + `.spinner` for button loading states (spin keyframe)
+- `.toast-dismiss` for toast close button
+- `.shortcuts-hint` for keyboard shortcut badge in canvas
+- `.provider-toggle` for AI provider toggle buttons
 
 ## Connectors
 - SVG paths in Connectors.jsx
@@ -127,6 +141,20 @@ npm run preview   # Preview production build
 
 ## Known Tolerated Lint Warning
 - `react-refresh/only-export-components` in `NexusContext.jsx` (exports `useNexus` alongside component)
+
+## UX / Accessibility
+- All icon-only buttons have `aria-label`
+- Chat messages area has `role="log"` + `aria-live="polite"`
+- ConfirmDialog has proper `role="dialog"`, `aria-modal`, focus trap (Tab/Shift+Tab), and Escape to close
+- Canvas grid (`.canvas-grid`) and connector SVGs have `aria-hidden="true"`
+- Button loading states: Send, Elaborate, Expand use `.btn-loading` + `.spinner` (CSS `@keyframes spin`)
+- Chat shows welcome message when empty with onboarding hints
+- Search shows "no results" state when nothing matches
+- Error messages follow cause + remedy pattern (never "Something went wrong")
+- Toast stack: max 3 visible, errors persist until dismissed, mobile-responsive positioning
+- Keyboard shortcut hint (`Ctrl+Z` / Shift+drag / Del) in bottom-center of canvas
+- Mobile: touch targets ≥44×44, larger icon buttons, full-width drawer, full-width toasts
+- `prefers-reduced-motion` respected on all animations
 
 ## Pending / In Progress
 - AI: web research integration

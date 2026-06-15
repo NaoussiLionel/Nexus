@@ -7,7 +7,7 @@ import {
   recomputeLayout, countDescendants
 } from '../utils/tree';
 import {
-  Sparkles, FileText, Plus, Crosshair, Minimize2, Trash2,
+  Sparkles, LoaderCircle, FileText, Plus, Crosshair, Minimize2, Trash2,
   ChevronDown, ChevronRight
 } from 'lucide-react';
 
@@ -106,27 +106,32 @@ export default function MindNode({ node }) {
 
   return (
     <div className={classes.join(' ')} data-id={node.id} style={style} onClick={() => { setSelectedId(node.id); openDrawer(node.id); }}>
-      <div className="node-actions">
-        <button className="action-btn" title="Expand with AI" onClick={handleExpand}>
-          <Sparkles size={14} />
+      <div className="node-actions" role="toolbar" aria-label="Node actions">
+        <button className={`action-btn${node.expanding ? ' btn-loading' : ''}`} aria-label="Expand with AI" onClick={handleExpand}>
+          {node.expanding ? <LoaderCircle size={14} className="spinner" /> : <Sparkles size={14} />}
         </button>
-        <button className="action-btn" title="Elaborate with AI" onClick={(e) => { e.stopPropagation(); openDrawer(node.id); }}>
+        <button className="action-btn" aria-label="Elaborate with AI" onClick={(e) => { e.stopPropagation(); openDrawer(node.id); }}>
           <FileText size={14} />
         </button>
-        <button className="action-btn" title="Add item" onClick={handleAddChild}>
+        <button className="action-btn" aria-label="Add item" onClick={handleAddChild}>
           <Plus size={14} />
         </button>
         {node.depth > 0 && (
           <>
-            <button className="action-btn" title={isolatedId === node.id ? 'Show full map' : 'Focus on this branch'} onClick={handleIsolate}>
+            <button className="action-btn" aria-label={isolatedId === node.id ? 'Show full map' : 'Focus on this branch'} onClick={handleIsolate}>
               {isolatedId === node.id ? <Minimize2 size={14} /> : <Crosshair size={14} />}
             </button>
-            <button className="action-btn danger" title="Delete" onClick={handleDelete}>
+            <button className="action-btn danger" aria-label="Delete node" onClick={handleDelete}>
               <Trash2 size={14} />
             </button>
           </>
         )}
       </div>
+      {node.depth > 0 && (
+        <div className="sr-only" style={{position:'absolute',width:'1px',height:'1px',padding:0,margin:'-1px',overflow:'hidden',clip:'rect(0,0,0,0)',whiteSpace:'nowrap',border:0}}>
+          Node actions: expand with AI, add item, focus branch, delete
+        </div>
+      )}
       <div className="node-head">
         <span className="node-code">{codeLabel}</span>
         <span className="node-kind">{kindLabel}</span>
@@ -136,7 +141,7 @@ export default function MindNode({ node }) {
         <p className="node-desc">{truncate(node.description, descMax)}</p>
       )}
       {hasChildren && (
-        <button className="collapse-toggle" title={node.collapsed ? 'Expand branch' : 'Collapse branch'} onClick={handleToggleCollapse}>
+        <button className="collapse-toggle" aria-label={node.collapsed ? 'Expand branch' : 'Collapse branch'} onClick={handleToggleCollapse}>
           {node.collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
           {node.collapsed && <span className="collapse-count">{countDescendants(node)}</span>}
         </button>

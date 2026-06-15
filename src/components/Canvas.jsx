@@ -17,6 +17,7 @@ export default function Canvas() {
     selectedIds, setSelectedIds,
     pushHistory, persist, addToast, undo,
     canvas, openDrawer, lastSaved, fitView, setScale, layout,
+    searchQuery,
   } = useNexus();
   const { wrapRef, onPointerDown: canvasPointerDown, onPointerMove: canvasPointerMove,
           onPointerUp: canvasPointerUp } = useCanvas();
@@ -43,6 +44,19 @@ export default function Canvas() {
     });
     return result;
   }, [tree, visibleIds]);
+
+  const matchedIds = useMemo(() => {
+    if (!searchQuery) return null;
+    const q = searchQuery.toLowerCase();
+    const s = new Set();
+    visibleNodes.forEach(n => {
+      if (n.title.toLowerCase().includes(q) || (n.description && n.description.toLowerCase().includes(q)))
+        s.add(n.id);
+    });
+    return s;
+  }, [searchQuery, visibleNodes]);
+
+  const noSearchResults = searchQuery && matchedIds && matchedIds.size === 0;
 
   useEffect(() => {
     const space = document.getElementById('zoomSpace');
@@ -237,18 +251,18 @@ export default function Canvas() {
 
   return (
     <div className="canvas-wrap" id="canvasWrap" ref={wrapRef} onPointerDown={handlePointerDown}>
-      <div className="canvas-grid" />
+      <div className="canvas-grid" aria-hidden="true" />
 
       <div className="isolate-bar" id="isolateBar" hidden={!isolatedId}>
         <Compass size={14} style={{ color: 'var(--brass)' }} />
         <span>Focused on <strong>{findNode(tree, isolatedId)?.title || ''}</strong></span>
-        <button type="button" onClick={() => { setIsolatedId(null); setTimeout(fitView, 50); }}>
+        <button type="button" aria-label="Show full map" onClick={() => { setIsolatedId(null); setTimeout(fitView, 50); }}>
           Show full map
         </button>
       </div>
 
       <div className="zoom-space" id="zoomSpace">
-        <svg className="connector-layer" id="connectorLayer">
+        <svg className="connector-layer" id="connectorLayer" aria-hidden="true">
           <Connectors />
         </svg>
         <div className="nodes-layer" id="nodesLayer">
@@ -257,6 +271,16 @@ export default function Canvas() {
           ))}
         </div>
       </div>
+
+      {noSearchResults && (
+        <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none', zIndex:10 }}>
+          <div style={{ textAlign:'center', color:'var(--ink-faint)' }}>
+            <div style={{ fontSize:'2rem', marginBottom:'8px', opacity:0.4 }}>&#8981;</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:'.9rem', color:'var(--ink-dim)', marginBottom:'4px' }}>No nodes match &ldquo;{searchQuery}&rdquo;</div>
+            <div style={{ fontSize:'.78rem' }}>Try a broader search term</div>
+          </div>
+        </div>
+      )}
 
       {marqueeBox && (
         <div className="marquee-box" style={{
@@ -278,17 +302,23 @@ export default function Canvas() {
         <div className="empty-icon"><Compass size={30} /></div>
         <h2>What are we building today?</h2>
         <p>Tell the AI Architect on the right what you're working on — it'll sketch out a first plan for you. Or drop a pin on the canvas and start building your way.</p>
-        <button className="btn-primary" type="button" onClick={handleStartEmpty}>
+        <button className="btn-primary" type="button" aria-label="Start with a blank canvas" onClick={handleStartEmpty}>
           Start with a blank canvas
         </button>
       </div>
 
-      <div className="scale-indicator">
+      <div className="scale-indicator" aria-hidden="true">
         <div className="scale-ticks" />
         <span id="scaleLabel">SCALE 1:{Math.max(1, Math.round(100 / canvas.scale))}</span>
       </div>
 
-      <div className="title-block" id="titleBlock" title="Fit to view" onClick={fitView}>
+      {tree && (
+        <div className="shortcuts-hint" aria-hidden="true">
+          <kbd>Ctrl+Z</kbd> undo &middot; <kbd>Shift</kbd>+drag select &middot; <kbd>Del</kbd> remove
+        </div>
+      )}
+
+      <div className="title-block" id="titleBlock" title="Click to fit view. Shortcuts: Ctrl+Z undo, Shift+drag box-select, Delete remove selected" onClick={fitView}>
         <div className="tb-name" id="tbName">{tree?.title || 'No project yet'}</div>
         <div className="tb-meta">
           <div><span>NODES</span><strong>{nodeCount}</strong></div>

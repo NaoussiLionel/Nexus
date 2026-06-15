@@ -3,10 +3,10 @@ import { useNexus } from '../store/NexusContext';
 import { useAI } from '../hooks/useAI';
 import { MODELS, SUGGESTIONS } from '../utils/constants';
 import { escapeHtml, renderInline } from '../utils/helpers';
-import { Compass, User, Brain, ChevronRight, GitCommitHorizontal, Send, X, Settings, KeyRound } from 'lucide-react';
+import { Compass, User, Brain, ChevronRight, GitCommitHorizontal, Send, LoaderCircle, X, Settings, KeyRound, Globe, Cpu } from 'lucide-react';
 
 export default function Sidebar() {
-  const { tree, chat, model, setModel, busy, persist, geminiKey, setGeminiKey, addToast } = useNexus();
+  const { tree, chat, model, setModel, busy, persist, geminiKey, setGeminiKey, provider, setProvider, customModel, setCustomModel, addToast } = useNexus();
   const { sendChatMessage } = useAI();
   const inputRef = useRef(null);
   const [input, setInput] = useState('');
@@ -56,19 +56,24 @@ export default function Sidebar() {
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-          <select
-            className="model-select"
-            value={model}
-            onChange={(e) => { setModel(e.target.value); persist(); }}
-          >
-            {MODELS.map(m => (
-              <option key={m.id} value={m.id}>{m.label}</option>
-            ))}
-          </select>
-          <button className={`icon-btn${showSettings ? ' active' : ''}`} title="API settings" onClick={() => { setShowSettings(!showSettings); if (!showSettings) setKeyInput(geminiKey); }}>
+          {provider === 'puter' ? (
+            <select
+              className="model-select"
+              aria-label="AI model"
+              value={model}
+              onChange={(e) => { setModel(e.target.value); persist(); }}
+            >
+              {MODELS.map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="settings-hint" style={{ fontSize:'.65rem', color:'var(--ink-faint)', padding:'0 6px' }}>Custom: {customModel}</span>
+          )}
+          <button className={`icon-btn${showSettings ? ' active' : ''}`} aria-label="API settings" onClick={() => { setShowSettings(!showSettings); if (!showSettings) setKeyInput(geminiKey); }}>
             <Settings size={15} />
           </button>
-          <button className="icon-btn" title="Hide sidebar" onClick={() => {
+          <button className="icon-btn" aria-label="Hide sidebar" onClick={() => {
             if (window.innerWidth <= 1100) {
               document.body.classList.remove('sidebar-open');
             } else {
@@ -83,14 +88,47 @@ export default function Sidebar() {
       {showSettings && (
         <div className="sidebar-settings">
           <div className="settings-row">
+            <Globe size={13} />
+            <span>Provider</span>
+          </div>
+          <div className="settings-row provider-toggle">
+            <button
+              className={`btn-ghost toggle-btn${provider === 'puter' ? ' active' : ''}`}
+              onClick={() => setProvider('puter')}
+            ><Cpu size={13} /> Puter.ai</button>
+            <button
+              className={`btn-ghost toggle-btn${provider === 'custom' ? ' active' : ''}`}
+              onClick={() => setProvider('custom')}
+            ><KeyRound size={13} /> Custom API</button>
+          </div>
+
+          {provider === 'custom' && (
+            <>
+              <div className="settings-row">
+                <Cpu size={13} />
+                <span>Model</span>
+              </div>
+              <div className="settings-row">
+                <input
+                  className="settings-input"
+                  type="text"
+                  placeholder="gemini-2.5-flash, gpt-4o, \u2026"
+                  value={customModel}
+                  onChange={(e) => setCustomModel(e.target.value.trim())}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="settings-row">
             <KeyRound size={13} />
-            <span>Gemini API Key</span>
+            <span>API Key {provider === 'custom' ? '(required)' : '(optional \u2014 fallback)'}</span>
           </div>
           <div className="settings-row">
             <input
               className="settings-input"
               type="password"
-              placeholder="Paste your Gemini API key\u2026"
+              placeholder={provider === 'custom' ? 'Paste your API key\u2026' : 'Paste your Gemini API key\u2026'}
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}
             />
@@ -103,12 +141,21 @@ export default function Sidebar() {
           {geminiKey && (
             <div className="settings-row">
               <button className="btn-ghost" style={{ color:'var(--ink-faint)', fontSize:'.7rem' }} onClick={() => { setGeminiKey(''); setKeyInput(''); }}>Clear key</button>
-              <span className="settings-hint">Key saved. AI will fall back to Gemini when puter.ai is unavailable.</span>
+              <span className="settings-hint">Key saved. {provider === 'custom' ? 'Used for all API calls.' : 'AI will fall back to Gemini when puter.ai is unavailable.'}</span>
             </div>
           )}
         </div>
       )}
-      <div className="chat-messages" id="chatMessages">
+      <div className="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-label="Chat messages">
+        {chat.length === 0 && (
+          <div className="msg msg-ai" style={{ animation:'none', marginTop:'8px' }}>
+            <div className="msg-avatar"><Compass size={14} /></div>
+            <div className="msg-bubble" style={{ background:'transparent', border:'1px dashed var(--bp-600)', color:'var(--ink-faint)', fontSize:'.78rem', textAlign:'center', padding:'20px 16px' }}>
+              <div style={{ fontWeight:600, color:'var(--ink-dim)', marginBottom:'6px', fontSize:'.85rem' }}>Welcome to Nexus Architect</div>
+              <div style={{ lineHeight:1.6 }}>Describe your project idea below, and I&apos;ll help you structure it into a clear plan. Try a suggestion to get started, or just type whatever&apos;s on your mind.</div>
+            </div>
+          </div>
+        )}
         {chat.map((msg, _idx) => (
           <div key={_idx} className={`msg ${msg.role === 'user' ? 'msg-user' : 'msg-ai'}`}>
             <div className="msg-avatar">
@@ -162,8 +209,8 @@ export default function Sidebar() {
           onChange={handleInput}
           onKeyDown={handleKeyDown}
         />
-        <button type="submit" className="send-btn" id="sendBtn" disabled={busy || !input.trim()}>
-          <Send size={17} />
+        <button type="submit" className={`send-btn${busy ? ' btn-loading' : ''}`} id="sendBtn" aria-label="Send message" disabled={busy || !input.trim()}>
+          {busy ? <LoaderCircle size={17} className="spinner" /> : <Send size={17} />}
         </button>
       </form>
       <div className="hint-line">Enter to send \u00B7 Shift+Enter for a new line</div>

@@ -6,6 +6,15 @@ import {
 } from '../utils/tree';
 import { REPLY_MARK, ACTIONS_MARK, MAX_VISIBLE_DEPTH } from '../utils/constants';
 import { geminiChat } from './useGemini';
+import { openaiChat } from './useOpenAI';
+
+function callModelAPI(messages, opts) {
+  const model = opts.model || 'gemini-2.5-flash';
+  if (model.startsWith('gpt-') || model.startsWith('o1') || model.startsWith('o3')) {
+    return openaiChat(messages, { ...opts, model });
+  }
+  return geminiChat(messages, { ...opts, model });
+}
 
 function parseAIResponse(text) {
   const idx = text.indexOf(ACTIONS_MARK);
@@ -21,28 +30,28 @@ function parseAIResponse(text) {
 }
 
 async function tryAI(messages, opts) {
-  if (typeof window.puter !== 'undefined' && window.puter.ai) {
+  if (opts.provider !== 'custom' && typeof window.puter !== 'undefined' && window.puter.ai) {
     try { return await window.puter.ai.chat(messages, opts); } catch { /* fall through */ }
   }
   if (opts.apiKey) {
     try {
-      return await geminiChat(messages, { ...opts, model: 'gemini-2.5-flash' });
+      return await callModelAPI(messages, opts);
     } catch (e) {
-      console.error('Gemini fallback failed:', e);
+      console.error('Custom API call failed:', e);
     }
   }
   return null;
 }
 
 async function tryAISync(prompt, opts) {
-  if (typeof window.puter !== 'undefined' && window.puter.ai) {
+  if (opts.provider !== 'custom' && typeof window.puter !== 'undefined' && window.puter.ai) {
     try { return await window.puter.ai.chat(prompt, opts); } catch { /* fall through */ }
   }
   if (opts.apiKey) {
     try {
-      return await geminiChat([{ role: 'user', content: prompt }], { ...opts, model: 'gemini-2.5-flash', stream: false });
+      return await callModelAPI([{ role: 'user', content: prompt }], { ...opts, stream: false });
     } catch (e) {
-      console.error('Gemini fallback failed:', e);
+      console.error('Custom API call failed:', e);
     }
   }
   return null;
@@ -55,13 +64,14 @@ export function useAI() {
     setRecentlyAddedIds, setIsolatedId,
     setPendingActions,
     geminiKey,
+    provider, customModel,
   } = useNexus();
 
   const sendChatMessage = useCallback(async (userText) => {
     userText = (userText || '').trim();
     if (!userText) return;
-    if ((typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
-      addToast('No AI available. Add a Gemini API key in sidebar settings, or try again later.', 'error');
+    if (provider === 'custom' ? !geminiKey : (typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
+      addToast(provider === 'custom' ? 'No API key set. Open the settings panel (gear icon) and paste your API key.' : 'No AI available. Open the settings panel (gear icon) and add a Gemini API key as a fallback, or try again later.', 'error');
       return;
     }
 
@@ -114,8 +124,8 @@ export function useAI() {
       const msgHistory = chat.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
       const messages = [{ role: 'system', content: sys }].concat(msgHistory, [{ role: 'user', content: userText }]);
 
-      const resp = await tryAI(messages, { model, stream: true, apiKey: geminiKey });
-      if (!resp) { throw new Error('All AI providers failed'); }
+      const resp = await tryAI(messages, { model: provider === 'custom' ? customModel : model, stream: true, apiKey: geminiKey, provider });
+      if (!resp) throw new Error('AI service unreachable. Check your API key or internet connection and try again.');
       let full = '';
 
       for await (const part of resp) {
@@ -155,20 +165,20 @@ export function useAI() {
     } catch (err) {
       setChat(prev => {
         const last = prev[prev.length - 1];
-        if (last) { last.pending = false; last.error = true; last.text = 'Connection error \u2014 ' + (err?.message || 'please try again.'); }
+        if (last) { last.pending = false; last.error = true; last.text = err?.message || 'The AI service did not respond. Check your connection and try again.'; }
         return [...prev];
       });
-      addToast('AI hit a snag: ' + (err?.message || 'try again in a moment'), 'error');
+      addToast(err?.message || 'AI request failed. Check your connection and try again.', 'error');
     } finally {
       setBusy(false);
     }
-  }, [tree, chat, model, layout, setChat, setBusy, addToast, pushHistory, persist, setPendingActions, geminiKey]);
+  }, [tree, chat, model, layout, setChat, setBusy, addToast, pushHistory, persist, setPendingActions, geminiKey, provider, customModel]);
 
   const expandNodeAI = useCallback(async (nodeId) => {
     const node = findNode(tree, nodeId);
     if (!node) return;
-    if ((typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
-      addToast('No AI available. Add a Gemini API key in sidebar settings, or try again later.', 'error');
+    if (provider === 'custom' ? !geminiKey : (typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
+      addToast(provider === 'custom' ? 'No API key set. Open the settings panel (gear icon) and paste your API key.' : 'No AI available. Open the settings panel (gear icon) and add a Gemini API key as a fallback, or try again later.', 'error');
       return;
     }
     setBusy(true);
@@ -193,8 +203,8 @@ export function useAI() {
     const prompt = lines.join('\n');
 
     try {
-      const resp = await tryAISync(prompt, { model, apiKey: geminiKey });
-      if (!resp) throw new Error('All AI providers failed');
+      const resp = await tryAISync(prompt, { model: provider === 'custom' ? customModel : model, apiKey: geminiKey, provider });
+      if (!resp) throw new Error('AI service unreachable. Check your API key or internet connection and try again.');
       const text = typeof resp === 'string' ? resp : (resp?.message?.content || resp?.text || '');
       const m = text.match(/\[[\s\S]*\]/);
       if (!m) throw new Error('unexpected response format');
@@ -221,19 +231,19 @@ export function useAI() {
       addToast('Added ' + items.length + ' idea(s) to "' + node.title + '"');
       setTimeout(() => { setRecentlyAddedIds(new Set()); }, 1100);
     } catch (err) {
-      addToast('AI hit a snag: ' + (err?.message || 'try again in a moment'), 'error');
+      addToast(err?.message || 'AI request failed. Check your connection and try again.', 'error');
     } finally {
       node.expanding = false;
       setBusy(false);
       setTree({ ...tree });
     }
-  }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId, geminiKey]);
+  }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId, geminiKey, provider, customModel]);
 
   const elaborateNodeAI = useCallback(async (nodeId, onContent) => {
     const node = findNode(tree, nodeId);
     if (!node) return;
-    if ((typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
-      addToast('No AI available. Add a Gemini API key in sidebar settings, or try again later.', 'error');
+    if (provider === 'custom' ? !geminiKey : (typeof window.puter === 'undefined' || !window.puter.ai) && !geminiKey) {
+      addToast(provider === 'custom' ? 'No API key set. Open the settings panel (gear icon) and paste your API key.' : 'No AI available. Open the settings panel (gear icon) and add a Gemini API key as a fallback, or try again later.', 'error');
       return;
     }
     setBusy(true);
@@ -252,19 +262,19 @@ export function useAI() {
     ].join('\n');
 
     try {
-      const resp = await tryAI([{ role: 'user', content: prompt }], { model, stream: true, apiKey: geminiKey });
-      if (!resp) throw new Error('All AI providers failed');
+      const resp = await tryAI([{ role: 'user', content: prompt }], { model: provider === 'custom' ? customModel : model, stream: true, apiKey: geminiKey, provider });
+      if (!resp) throw new Error('AI service unreachable. Check your API key or internet connection and try again.');
       let full = '';
       for await (const part of resp) {
         if (part?.text) { full += part.text; onContent(full); }
       }
       if (!full.trim()) throw new Error('empty response');
     } catch (err) {
-      addToast('AI hit a snag: ' + (err?.message || 'try again in a moment'), 'error');
+      addToast(err?.message || 'AI request failed. Check your connection and try again.', 'error');
     } finally {
       setBusy(false);
     }
-  }, [tree, chat, model, setBusy, addToast, geminiKey]);
+  }, [tree, chat, model, setBusy, addToast, geminiKey, provider, customModel]);
 
   return { sendChatMessage, expandNodeAI, elaborateNodeAI };
 }

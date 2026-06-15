@@ -38,12 +38,24 @@ export function NexusProvider({ children }) {
   const [geminiKey, setGeminiKey] = useState(() => {
     try { return localStorage.getItem('nexus_gemini_key') || ''; } catch { return ''; }
   });
+  const [provider, setProvider] = useState(() => {
+    try { return localStorage.getItem('nexus_provider') || 'puter'; } catch { return 'puter'; }
+  });
+  const [customModel, setCustomModel] = useState(() => {
+    try { return localStorage.getItem('nexus_custom_model') || 'gemini-2.5-flash'; } catch { return 'gemini-2.5-flash'; }
+  });
   const [resetArmed, setResetArmed] = useState(false);
 
   const saveTimer = useRef(null);
   useEffect(() => {
     try { localStorage.setItem('nexus_gemini_key', geminiKey || ''); } catch { /* ignore */ }
   }, [geminiKey]);
+  useEffect(() => {
+    try { localStorage.setItem('nexus_provider', provider); } catch { /* ignore */ }
+  }, [provider]);
+  useEffect(() => {
+    try { localStorage.setItem('nexus_custom_model', customModel); } catch { /* ignore */ }
+  }, [customModel]);
 
   const setTree = useCallback((t) => {
     setTreeRaw(t);
@@ -77,12 +89,12 @@ export function NexusProvider({ children }) {
       try {
         if (!window.puter?.storage) return;
         await window.puter.storage.set(STORAGE_KEY, JSON.stringify({
-          tree, chat: chat.slice(-24), model, layout, geminiKey, savedAt: Date.now()
+          tree, chat: chat.slice(-24), model, layout, geminiKey, provider, customModel, savedAt: Date.now()
         }));
         setLastSaved(Date.now());
       } catch { /* ignore */ }
     }, 500);
-  }, [tree, chat, model, layout, geminiKey]);
+  }, [tree, chat, model, layout, geminiKey, provider, customModel]);
 
   const loadFromStorage = useCallback(async () => {
     try {
@@ -97,6 +109,8 @@ export function NexusProvider({ children }) {
         if (data.geminiKey && !geminiKey) {
           try { localStorage.setItem('nexus_gemini_key', data.geminiKey); setGeminiKey(data.geminiKey); } catch { /* ignore */ }
         }
+        if (data.provider) setProvider(data.provider);
+        if (data.customModel) setCustomModel(data.customModel);
         setLastSaved(data.savedAt || null);
       }
     } catch { /* ignore */ }
@@ -116,8 +130,14 @@ export function NexusProvider({ children }) {
 
   const addToast = useCallback((message, type, action) => {
     const id = generateId('toast');
-    setToasts(prev => [...prev, { id, message, type, action }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 6000 : 3400);
+    const isError = type === 'error';
+    setToasts(prev => {
+      const next = [...prev, { id, message, type, action }];
+      return next.length > 3 ? next.slice(-3) : next;
+    });
+    if (!isError) {
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 6000 : 3400);
+    }
   }, []);
 
   const removeToast = useCallback((id) => {
@@ -247,6 +267,7 @@ export function NexusProvider({ children }) {
     confirmPendingActions: confirmPendingActionsCB,
     cancelPendingActions: cancelPendingActionsCB,
     geminiKey, setGeminiKey,
+    provider, setProvider, customModel, setCustomModel,
     resetArmed, setResetArmed,
     pushHistory, undo, persist, loadFromStorage, resetProject,
     addToast, removeToast,
@@ -254,7 +275,7 @@ export function NexusProvider({ children }) {
     setScale, zoomIn, zoomOut, fitView,
   }), [tree, nodeMap, chat, model, canvas, isolatedId, selectedId, selectedIds, history,
       busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, layout, searchQuery, pendingActions,
-      geminiKey, resetArmed,
+      geminiKey, provider, customModel, resetArmed,
       confirmPendingActionsCB, cancelPendingActionsCB,
       setTree, setNodeMap, setChat, setModel, setCanvas, setIsolatedId,
       setSelectedId, setSelectedIds, setHistory, setBusy, setRecentlyAddedIds, setLastSaved,
