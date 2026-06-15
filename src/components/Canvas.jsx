@@ -216,7 +216,7 @@ export default function Canvas() {
     const onWheel = (e) => {
       e.preventDefault();
       const factor = Math.exp(-e.deltaY * 0.0015);
-      setScale(scaleRef.current * factor, e.clientX, e.clientY);
+      setScale(factor, e.clientX, e.clientY);
     };
     wrap.addEventListener('wheel', onWheel, { passive: false });
     return () => wrap.removeEventListener('wheel', onWheel);

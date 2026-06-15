@@ -177,9 +177,9 @@ export function NexusProvider({ children }) {
     setSelectedId(null);
   }, []);
 
-  const setScale = useCallback((newScale, clientX, clientY) => {
+  const setScale = useCallback((factor, clientX, clientY) => {
     setCanvas(prev => {
-      const s = Math.min(2, Math.max(0.2, newScale));
+      const s = Math.min(2, Math.max(0.2, prev.scale * factor));
       const wrap = document.getElementById('canvasWrap');
       if (!wrap) return prev;
       const rect = wrap.getBoundingClientRect();
