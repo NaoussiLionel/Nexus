@@ -286,6 +286,7 @@ export function useAI() {
         node.children.push(child);
       });
       node.collapsed = false;
+      node.expanding = false;
       if (node.depth >= MAX_VISIBLE_DEPTH - 1) {
         setIsolatedId(node.id);
       }
@@ -298,11 +299,10 @@ export function useAI() {
       setTimeout(() => { setRecentlyAddedIds(new Set()); }, 1100);
     } catch (err) {
       addToast(err?.message || 'AI request failed. Check your connection and try again.', 'error');
-    } finally {
       node.expanding = false;
-      setBusy(false);
       setTree({ ...tree });
     }
+    setBusy(false);
   }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId, geminiKey, provider, customModel]);
 
   const elaborateNodeAI = useCallback(async (nodeId, onContent) => {
