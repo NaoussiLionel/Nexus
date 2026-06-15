@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNexus } from '../store/NexusContext';
 import { useAI } from '../hooks/useAI';
 import { findNode, ancestorPath } from '../utils/tree';
@@ -62,6 +62,8 @@ export default function DetailsDrawer() {
     pushHistory, persist, busy
   } = useNexus();
   const { elaborateNodeAI } = useAI();
+  const treeRef = useRef(tree);
+  useEffect(() => { treeRef.current = tree; });
 
   const node = drawerNodeId ? findNode(tree, drawerNodeId) : null;
 
@@ -87,10 +89,11 @@ export default function DetailsDrawer() {
     if (!drawerNodeId) return;
     handleSave(null, null);
     elaborateNodeAI(drawerNodeId, (text) => {
-      const n = findNode(tree, drawerNodeId);
-      if (n) { n.description = text; setTree({ ...tree }); }
+      const current = treeRef.current;
+      const n = findNode(current, drawerNodeId);
+      if (n) { n.description = text; setTree({ ...current }); }
     });
-  }, [drawerNodeId, handleSave, elaborateNodeAI, tree, setTree]);
+  }, [drawerNodeId, handleSave, elaborateNodeAI, setTree]);
 
   return (
     <div className={`details-drawer${drawerNodeId ? ' open' : ''}`} id="detailsDrawer">

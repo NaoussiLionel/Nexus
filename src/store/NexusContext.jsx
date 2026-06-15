@@ -62,6 +62,18 @@ export function NexusProvider({ children }) {
     setNodeMap(rebuildNodeMap(t));
   }, []);
 
+  const addToast = useCallback((message, type, action) => {
+    const id = generateId('toast');
+    const isError = type === 'error';
+    setToasts(prev => {
+      const next = [...prev, { id, message, type, action }];
+      return next.length > 3 ? next.slice(-3) : next;
+    });
+    if (!isError) {
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 6000 : 3400);
+    }
+  }, []);
+
   const pushHistory = useCallback(() => {
     if (!tree) return;
     setHistory(prev => {
@@ -75,33 +87,55 @@ export function NexusProvider({ children }) {
     setHistory(prev => {
       if (!prev.length) return prev;
       const nh = [...prev];
-      const snapshot = JSON.parse(nh.pop());
-      setTree(snapshot);
-      setIsolatedId(null);
-      setSelectedId(null);
-      return nh;
+      try {
+        const snapshot = JSON.parse(nh.pop());
+        setTree(snapshot);
+        setIsolatedId(null);
+        setSelectedId(null);
+        return nh;
+      } catch {
+        addToast('Could not undo — history entry was corrupted.', 'error');
+        return nh;
+      }
     });
-  }, [setTree]);
+  }, [setTree, addToast]);
+
+  const SAVE_LOCAL_KEY = 'nexus_architect_data';
 
   const persist = useCallback(() => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      const payload = JSON.stringify({
+        tree, chat: chat.slice(-24), model, layout, geminiKey, provider, customModel, savedAt: Date.now()
+      });
       try {
-        if (!window.puter?.storage) return;
-        await window.puter.storage.set(STORAGE_KEY, JSON.stringify({
-          tree, chat: chat.slice(-24), model, layout, geminiKey, provider, customModel, savedAt: Date.now()
-        }));
-        setLastSaved(Date.now());
-      } catch { /* ignore */ }
+        localStorage.setItem(SAVE_LOCAL_KEY, payload);
+      } catch { /* localStorage full */ }
+      try {
+        if (window.puter?.storage) {
+          await window.puter.storage.set(STORAGE_KEY, payload);
+        }
+      } catch { /* puter unavailable */ }
+      setLastSaved(Date.now());
     }, 500);
   }, [tree, chat, model, layout, geminiKey, provider, customModel]);
 
   const loadFromStorage = useCallback(async () => {
+    let raw = null;
     try {
-      if (!window.puter?.storage) return;
-      const res = await window.puter.storage.get(STORAGE_KEY);
-      if (res?.value) {
-        const data = JSON.parse(res.value);
+      raw = localStorage.getItem(SAVE_LOCAL_KEY);
+    } catch { /* ignore */ }
+    if (!raw) {
+      try {
+        if (window.puter?.storage) {
+          const res = await window.puter.storage.get(STORAGE_KEY);
+          if (res?.value) raw = res.value;
+        }
+      } catch { /* ignore */ }
+    }
+    if (raw) {
+      try {
+        const data = JSON.parse(raw);
         if (data.tree) setTree(data.tree);
         if (Array.isArray(data.chat)) setChat(data.chat);
         if (data.model && MODELS.some(m => m.id === data.model)) setModel(data.model);
@@ -112,8 +146,8 @@ export function NexusProvider({ children }) {
         if (data.provider) setProvider(data.provider);
         if (data.customModel) setCustomModel(data.customModel);
         setLastSaved(data.savedAt || null);
-      }
-    } catch { /* ignore */ }
+      } catch { /* ignore */ }
+    }
   }, [setTree, geminiKey, setGeminiKey]);
 
   const resetProject = useCallback(async () => {
@@ -125,19 +159,8 @@ export function NexusProvider({ children }) {
     setHistory([]);
     setLastSaved(null);
     setDrawerNodeId(null);
+    try { localStorage.removeItem('nexus_architect_data'); } catch { /* ignore */ }
     try { if (window.puter?.storage) await window.puter.storage.delete(STORAGE_KEY); } catch { /* ignore */ }
-  }, []);
-
-  const addToast = useCallback((message, type, action) => {
-    const id = generateId('toast');
-    const isError = type === 'error';
-    setToasts(prev => {
-      const next = [...prev, { id, message, type, action }];
-      return next.length > 3 ? next.slice(-3) : next;
-    });
-    if (!isError) {
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 6000 : 3400);
-    }
   }, []);
 
   const removeToast = useCallback((id) => {
@@ -223,11 +246,8 @@ export function NexusProvider({ children }) {
       const summary = describeActionsSummary(actions);
       setChat(c => {
         const last = c[c.length - 1];
-        if (last) {
-          last.pending = false;
-          last.actionsApplied = summary;
-        }
-        return [...c];
+        if (!last) return c;
+        return [...c.slice(0, -1), { ...last, pending: false, actionsApplied: summary }];
       });
       setTimeout(() => fitView(), 50);
       addToast(summary);
@@ -242,12 +262,8 @@ export function NexusProvider({ children }) {
       const { reply } = prev;
       setChat(c => {
         const last = c[c.length - 1];
-        if (last) {
-          last.pending = false;
-          last.text = reply || '';
-          last.actionsApplied = 'Changes were cancelled.';
-        }
-        return [...c];
+        if (!last) return c;
+        return [...c.slice(0, -1), { ...last, pending: false, text: reply || '', actionsApplied: 'Changes were cancelled.' }];
       });
       return null;
     });

@@ -1,11 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { useNexus } from './store/NexusContext';
 import Header from './components/Header';
 import Canvas from './components/Canvas';
-import Sidebar from './components/Sidebar';
-import DetailsDrawer from './components/DetailsDrawer';
-import ToastContainer from './components/Toast';
-import ConfirmDialog from './components/ConfirmDialog';
+import ErrorBoundary from './components/ErrorBoundary';
+
+const Sidebar = lazy(() => import('./components/Sidebar'));
+const DetailsDrawer = lazy(() => import('./components/DetailsDrawer'));
+const ToastContainer = lazy(() => import('./components/Toast'));
+const ConfirmDialog = lazy(() => import('./components/ConfirmDialog'));
 
 export default function App() {
   const { loadFromStorage } = useNexus();
@@ -15,15 +17,19 @@ export default function App() {
   }, [loadFromStorage]);
 
   return (
-    <>
+    <ErrorBoundary>
       <Header />
       <main className="app-main">
         <Canvas />
-        <Sidebar />
-        <DetailsDrawer />
+        <Suspense fallback={null}>
+          <Sidebar />
+          <DetailsDrawer />
+        </Suspense>
       </main>
-      <ConfirmDialog />
-      <ToastContainer />
-    </>
+      <Suspense fallback={null}>
+        <ConfirmDialog />
+        <ToastContainer />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

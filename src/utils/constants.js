@@ -1,6 +1,7 @@
 export const STORAGE_KEY = 'nexus-architect-project';
 export const REPLY_MARK = '@@REPLY@@';
 export const ACTIONS_MARK = '@@ACTIONS@@';
+export const SEARCH_MARK = '@@SEARCH@@';
 
 export const MODELS = [
   { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6 \u2014 Balanced' },

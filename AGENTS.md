@@ -156,5 +156,29 @@ npm run preview   # Preview production build
 - Mobile: touch targets ≥44×44, larger icon buttons, full-width drawer, full-width toasts
 - `prefers-reduced-motion` respected on all animations
 
+## Error Handling
+- `ErrorBoundary` class component at root level (catches render crashes, shows reload UI with error details)
+- `fetchWithRetry` wraps all AI calls with exponential backoff (2 retries, delay doubles each time)
+- Every `catch` in AI functions passes meaningful error messages (never generic)
+- API retries: 800ms → 1600ms then full failure
+
+## Persistence
+- Always saves to `localStorage` under `nexus_architect_data` key (no Puter dependency for basic saves)
+- Falls back to Puter storage when available (used as secondary/cloud layer)
+- `loadFromStorage` reads localStorage first, then Puter
+- `resetProject` clears both localStorage and Puter storage
+
+## AI Web Research
+- AI can request live web searches via `@@SEARCH@@query@@` marker in its response
+- `webSearch()` function uses DuckDuckGo Instant Answer API (free, no API key required)
+- When `@@SEARCH@@` is detected in AI output, app stops streaming, fetches results, and re-runs the prompt with search context
+- System prompt includes web research capability instructions
+- Works with both Puter.ai and custom API providers
+
+## Lazy Loading (Performance)
+- `Sidebar`, `DetailsDrawer`, `ToastContainer`, `ConfirmDialog` are code-split with `React.lazy` + `Suspense`
+- Each renders as a separate chunk (9.4KB Sidebar, 2.45KB DetailsDrawer, 1.67KB ConfirmDialog, 0.82KB Toast)
+- Critical-path load: Header + Canvas + ErrorBoundary (~226KB initial)
+
 ## Pending / In Progress
-- AI: web research integration
+- None

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useNexus } from '../store/NexusContext';
 import { useAI } from '../hooks/useAI';
-import { hashAngle, truncate } from '../utils/helpers';
+import { hashAngle, truncate, renderInline } from '../utils/helpers';
 import {
   makeNode, findNode, removeNodeFromTree,
   recomputeLayout, countDescendants
@@ -138,7 +138,7 @@ export default function MindNode({ node }) {
       </div>
       <div className="node-title">{node.title}</div>
       {node.description && (
-        <p className="node-desc">{truncate(node.description, descMax)}</p>
+        <p className="node-desc" dangerouslySetInnerHTML={{ __html: renderInline(truncate(node.description, descMax)) }} />
       )}
       {hasChildren && (
         <button className="collapse-toggle" aria-label={node.collapsed ? 'Expand branch' : 'Collapse branch'} onClick={handleToggleCollapse}>

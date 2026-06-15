@@ -5,9 +5,10 @@ import {
 } from '../utils/tree';
 import { LAYOUTS } from '../utils/constants';
 import { sanitizeFilename, downloadFile } from '../utils/helpers';
+import { toPng } from 'html-to-image';
 import {
   Undo2, LayoutGrid, Maximize, ZoomOut, ZoomIn,
-  Download, FileDown, Upload, Trash2, MessageSquare, Search, X
+  Download, FileDown, Upload, Image, Trash2, MessageSquare, Search, X
 } from 'lucide-react';
 
 export default function Header() {
@@ -71,6 +72,20 @@ export default function Header() {
     })(tree, 0);
     downloadFile(lines.join('\n') + '\n', sanitizeFilename(tree.title) + '.md', 'text/markdown');
     addToast('Exported as outline');
+  }, [tree, addToast]);
+
+  const handleExportImage = useCallback(async () => {
+    if (!tree) return;
+    const el = document.getElementById('zoomSpace');
+    if (!el) return;
+    addToast('Generating image\u2026');
+    try {
+      const dataUrl = await toPng(el, { backgroundColor: '#0A1722', pixelRatio: 2 });
+      downloadFile(dataUrl, sanitizeFilename(tree.title) + '.png', 'image/png');
+      addToast('Exported as PNG');
+    } catch {
+      addToast('Could not render the canvas as an image. Try a different browser.', 'error');
+    }
   }, [tree, addToast]);
 
   const handleImport = useCallback((e) => {
@@ -194,6 +209,9 @@ export default function Header() {
           </button>
           <button className="btn-ghost" title="Export as Markdown outline" disabled={!has} onClick={handleExportMD}>
             <FileDown size={15} /><span className="btn-label">Outline</span>
+          </button>
+          <button className="btn-ghost" title="Export canvas as PNG image" disabled={!has} onClick={handleExportImage}>
+            <Image size={15} /><span className="btn-label">Image</span>
           </button>
           <button className="btn-ghost" title="Import a project JSON file" onClick={() => importRef.current?.click()}>
             <Upload size={15} /><span className="btn-label">Import</span>

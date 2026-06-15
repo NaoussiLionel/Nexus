@@ -4,7 +4,7 @@ import {
   makeNode, findNode, findParent, ancestorPath,
   positionNewNodes, buildTreeOutline,
 } from '../utils/tree';
-import { REPLY_MARK, ACTIONS_MARK, MAX_VISIBLE_DEPTH } from '../utils/constants';
+import { REPLY_MARK, ACTIONS_MARK, SEARCH_MARK, MAX_VISIBLE_DEPTH } from '../utils/constants';
 import { geminiChat } from './useGemini';
 import { openaiChat } from './useOpenAI';
 
@@ -14,6 +14,41 @@ function callModelAPI(messages, opts) {
     return openaiChat(messages, { ...opts, model });
   }
   return geminiChat(messages, { ...opts, model });
+}
+
+async function fetchWithRetry(fn, retries = 2, delay = 800) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (/\b(4\d\d|401|403|400|invalid|api key|unauthorized|not found)\b/i.test(msg)) throw err;
+      if (i === retries) throw err;
+      await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+    }
+  }
+}
+
+async function webSearch(query) {
+  try {
+    const url = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1&skip_disambig=1';
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const parts = [];
+    if (data.AbstractText) parts.push('Summary: ' + data.AbstractText);
+    if (data.AbstractSource) parts.push('Source: ' + data.AbstractSource + ' (' + data.AbstractURL + ')');
+    if (data.RelatedTopics?.length) {
+      const topics = data.RelatedTopics.filter(t => t.Text).slice(0, 3);
+      topics.forEach(t => parts.push(t.Text));
+    }
+    if (data.Results?.length) {
+      data.Results.slice(0, 3).forEach(r => parts.push(r.Text));
+    }
+    return parts.length ? parts.join('\n') : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseAIResponse(text) {
@@ -110,7 +145,9 @@ export function useAI() {
         '{"type":"delete_node","nodeId":"<id>"}',
         ']',
         '',
-        'Every leaf node must be a clear, executable statement \u2014 something someone can actually do: "Design database schema", "Implement login endpoint", "Write unit tests for X". Avoid vague or abstract labels. Each node should resolve a concrete sub-task that brings the full project to life. Descriptions: one concise sentence explaining the how or why. Titles: 2-6 words, starting with a verb where possible. A new map starts with 1 core + 3-5 branches, each with 2-4 leaves. Reply in the same language the user is writing in.'
+        'Every leaf node must be a clear, executable statement \u2014 something someone can actually do: "Design database schema", "Implement login endpoint", "Write unit tests for X". Avoid vague or abstract labels. Each node should resolve a concrete sub-task that brings the full project to life. Descriptions: one concise sentence explaining the how or why. Titles: 2-6 words, starting with a verb where possible. A new map starts with 1 core + 3-5 branches, each with 2-4 leaves. Reply in the same language the user is writing in.',
+        '',
+        'Web Research: If the user asks about current events, technologies, prices, or anything time-sensitive that you are not confident about, you can request a web search by including ' + SEARCH_MARK + 'your search query here' + SEARCH_MARK + ' in your response. The system will fetch live search results and you will receive them before the final reply. Use this for factual accuracy on recent topics.',
       ].join('\n');
     }
 
@@ -121,10 +158,10 @@ export function useAI() {
 
     try {
       const sys = buildSystemPrompt();
-      const msgHistory = chat.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
-      const messages = [{ role: 'system', content: sys }].concat(msgHistory, [{ role: 'user', content: userText }]);
+      let msgHistory = chat.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
+      let messages = [{ role: 'system', content: sys }].concat(msgHistory, [{ role: 'user', content: userText }]);
 
-      const resp = await tryAI(messages, { model: provider === 'custom' ? customModel : model, stream: true, apiKey: geminiKey, provider });
+      const resp = await fetchWithRetry(() => tryAI(messages, { model: provider === 'custom' ? customModel : model, stream: true, apiKey: geminiKey, provider }));
       if (!resp) throw new Error('AI service unreachable. Check your API key or internet connection and try again.');
       let full = '';
 
@@ -132,8 +169,9 @@ export function useAI() {
         if (part?.reasoning) {
           setChat(prev => {
             const last = prev[prev.length - 1];
-            if (last) last.reasoning = (last.reasoning || '') + part.reasoning;
-            return [...prev];
+            if (!last) return prev;
+            const updated = { ...last, reasoning: (last.reasoning || '') + part.reasoning };
+            return [...prev.slice(0, -1), updated];
           });
         }
         if (part?.text) {
@@ -143,9 +181,37 @@ export function useAI() {
           display = display.split(REPLY_MARK).join('').replace(/^\s+/, '');
           setChat(prev => {
             const last = prev[prev.length - 1];
-            if (last) { last.text = display; last.pending = display.length === 0; }
-            return [...prev];
+            if (!last) return prev;
+            const updated = { ...last, text: display, pending: display.length === 0 };
+            return [...prev.slice(0, -1), updated];
           });
+        }
+      }
+
+      const searchMatch = full.match(new RegExp(SEARCH_MARK + '([\\s\\S]*?)' + SEARCH_MARK));
+      if (searchMatch) {
+        const query = searchMatch[1].trim();
+        if (query) {
+          addToast('Searching the web for "' + query.slice(0, 50) + (query.length > 50 ? '…' : '') + '"…');
+          const searchResult = await webSearch(query);
+          if (searchResult) {
+            msgHistory = chat.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
+            messages = [
+              { role: 'system', content: sys },
+              ...msgHistory,
+              { role: 'system', content: 'Web search results for "' + query + '":\n' + searchResult + '\n\nUse this information to answer the user\'s question. Reply in the same language as the user.' },
+              { role: 'user', content: userText }
+            ];
+            const resp2 = await fetchWithRetry(() => tryAI(messages, { model: provider === 'custom' ? customModel : model, stream: true, apiKey: geminiKey, provider }));
+            if (resp2) {
+              full = '';
+              for await (const part of resp2) {
+                if (part?.text) full += part.text;
+              }
+            }
+          } else {
+            addToast('Web search returned no results for that query.', 'error');
+          }
         }
       }
 
@@ -203,7 +269,7 @@ export function useAI() {
     const prompt = lines.join('\n');
 
     try {
-      const resp = await tryAISync(prompt, { model: provider === 'custom' ? customModel : model, apiKey: geminiKey, provider });
+      const resp = await fetchWithRetry(() => tryAISync(prompt, { model: provider === 'custom' ? customModel : model, apiKey: geminiKey, provider }));
       if (!resp) throw new Error('AI service unreachable. Check your API key or internet connection and try again.');
       const text = typeof resp === 'string' ? resp : (resp?.message?.content || resp?.text || '');
       const m = text.match(/\[[\s\S]*\]/);

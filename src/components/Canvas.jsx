@@ -16,8 +16,8 @@ export default function Canvas() {
     tree, setTree, isolatedId, setIsolatedId, setSelectedId,
     selectedIds, setSelectedIds,
     pushHistory, persist, addToast, undo,
-    canvas, openDrawer, lastSaved, fitView, setScale, layout,
-    searchQuery,
+    canvas, openDrawer, closeDrawer, lastSaved, fitView, setScale, layout,
+    searchQuery, setSearchQuery, drawerNodeId, selectedId,
   } = useNexus();
   const { wrapRef, onPointerDown: canvasPointerDown, onPointerMove: canvasPointerMove,
           onPointerUp: canvasPointerUp } = useCanvas();
@@ -90,9 +90,17 @@ export default function Canvas() {
         setSelectedIds(new Set([id]));
       }
       setSelectedId(id);
+      const multi = selectedIds.size > 1 && selectedIds.has(id) ? selectedIds : new Set([id]);
+      const origPositions = {};
+      const t = treeRef.current;
+      multi.forEach(mid => {
+        const mn = findNode(t, mid);
+        if (mn) origPositions[mid] = { x: mn.x, y: mn.y };
+      });
       dragCtx.current = {
         id, startX: e.clientX, startY: e.clientY,
-        origX: node.x, origY: node.y, moved: false
+        origX: node.x, origY: node.y, moved: false,
+        origPositions
       };
       e.stopPropagation();
       return;
@@ -124,14 +132,13 @@ export default function Canvas() {
       }
       if (cur.moved) {
         const t = treeRef.current;
-        const toMove = selectedIds.size > 1 && selectedIds.has(cur.id) ? selectedIds : new Set([cur.id]);
-        toMove.forEach(id => {
+        cur.origPositions = cur.origPositions || { [cur.id]: { x: cur.origX, y: cur.origY } };
+        const toMove = cur.origPositions;
+        Object.keys(toMove).forEach(id => {
           const n = findNode(t, id);
           if (!n) return;
-          const origX = cur.id === id ? cur.origX : (n.x - dx);
-          const origY = cur.id === id ? cur.origY : (n.y - dy);
-          n.x = origX + dx;
-          n.y = origY + dy;
+          n.x = toMove[id].x + dx;
+          n.y = toMove[id].y + dy;
         });
         setTree({ ...t });
       }
@@ -146,7 +153,7 @@ export default function Canvas() {
       return;
     }
     canvasPointerMove(e);
-  }, [canvasPointerMove, pushHistory, setTree, selectedIds]);
+  }, [canvasPointerMove, pushHistory, setTree]);
 
   const handlePointerUp = useCallback((e) => {
     if (dragCtx.current) {
@@ -217,9 +224,12 @@ export default function Canvas() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 1) {
-        const t = treeRef.current;
+      const t = treeRef.current;
+      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInput && selectedIds.size > 0) {
         if (!t) return;
+        if (selectedIds.has(t.id)) return;
         pushHistory();
         const copy = JSON.parse(JSON.stringify(t));
         let removed = 0;
@@ -231,13 +241,63 @@ export default function Canvas() {
         setTree(copy);
         setSelectedIds(new Set());
         setSelectedId(null);
+        closeDrawer();
         persist();
         if (removed) addToast('Deleted ' + removed + ' node(s)', null, { label: 'Undo', onClick: () => undo() });
+        return;
+      }
+
+      if (e.key === 'Escape' && !isInput) {
+        if (drawerNodeId) { closeDrawer(); return; }
+        if (selectedIds.size) { setSelectedIds(new Set()); setSelectedId(null); return; }
+        if (searchQuery) { setSearchQuery(''); return; }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !isInput) {
+        switch (e.key) {
+          case 'z': e.preventDefault(); if (undo) undo(); break;
+          case 's': e.preventDefault(); persist(); addToast('Saved'); break;
+          case 'n':
+            e.preventDefault();
+            if (!t) {
+              const nt = makeNode('New project', '', 0);
+              setTree(nt);
+              recomputeLayout(nt, layout);
+              setTimeout(() => { fitView(); openDrawer(nt.id); }, 50);
+            } else {
+              const parent = selectedId ? findNode(t, selectedId) || t : t;
+              pushHistory();
+              const copy = JSON.parse(JSON.stringify(t));
+              const p = findNode(copy, parent.id);
+              if (!p) return;
+              const child = makeNode('New item', '', p.depth + 1);
+              p.children = p.children || [];
+              p.children.push(child);
+              p.collapsed = false;
+              recomputeLayout(copy, layout);
+              setTree(copy);
+              persist();
+              openDrawer(child.id);
+              setTimeout(() => { document.getElementById('detailsTitle')?.focus(); }, 100);
+            }
+            break;
+          case 'a':
+            e.preventDefault();
+            if (t) {
+              const ids = new Set();
+              visibleIds.forEach(id => ids.add(id));
+              setSelectedIds(ids);
+              if (ids.size) setSelectedId([...ids][0]);
+            }
+            break;
+        }
+        return;
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, pushHistory, setTree, persist, addToast, undo, setSelectedId, setSelectedIds]);
+  }, [selectedIds, selectedId, drawerNodeId, searchQuery, pushHistory, setTree, persist, addToast, undo, setSelectedId, setSelectedIds, closeDrawer, setSearchQuery, openDrawer, fitView, layout, visibleIds]);
 
   const handleStartEmpty = useCallback(() => {
     const t = makeNode('New project', 'Describe this project, or ask the AI Architect to fill it in.', 0);
