@@ -5,6 +5,7 @@ import {
   positionNewNodes, buildTreeOutline,
 } from '../utils/tree';
 import { REPLY_MARK, ACTIONS_MARK, SEARCH_MARK, DEFAULT_MAX_DEPTH } from '../utils/constants';
+import { logError } from '../utils/helpers';
 import { geminiChat } from './useGemini';
 import { openaiChat } from './useOpenAI';
 
@@ -22,8 +23,8 @@ async function fetchWithRetry(fn, retries = 2, delay = 800) {
       return await fn();
     } catch (err) {
       const msg = String(err?.message || err);
-      if (/\b(4\d\d|401|403|400|invalid|api key|unauthorized|not found)\b/i.test(msg)) throw err;
-      if (i === retries) throw err;
+      if (/\b(4\d\d|401|403|400|invalid|api key|unauthorized|not found)\b/i.test(msg)) { logError('AI fetch', err); throw err; }
+      if (i === retries) { logError('AI fetch (exhausted)', err); throw err; }
       await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
     }
   }

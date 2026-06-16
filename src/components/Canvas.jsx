@@ -231,7 +231,7 @@ export default function Canvas() {
         if (!t) return;
         if (selectedIds.has(t.id)) return;
         pushHistory();
-        const copy = JSON.parse(JSON.stringify(t));
+        const copy = structuredClone(t);
         let removed = 0;
         selectedIds.forEach(id => {
           if (id === copy.id) return;
@@ -269,7 +269,7 @@ export default function Canvas() {
             } else {
               const parent = selectedId ? findNode(t, selectedId) || t : t;
               pushHistory();
-              const copy = JSON.parse(JSON.stringify(t));
+              const copy = structuredClone(t);
               const p = findNode(copy, parent.id);
               if (!p) return;
               const child = makeNode('New item', '', p.depth + 1);

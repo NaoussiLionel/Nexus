@@ -339,6 +339,9 @@ export default function Header() {
               <button className="menu-bar-btn sm" disabled={!keyInput.trim()} onClick={() => { setGeminiKey(keyInput.trim()); addToast('API key saved'); }}>Save</button>
             </div>
             {geminiKey && <MenuItem label="Clear saved key" onClick={() => { setGeminiKey(''); setKeyInput(''); }} />}
+            <div style={{ padding:'4px 10px 8px', fontSize:'.65rem', color:'var(--ink-faint)', lineHeight:1.5 }}>
+              <span style={{ color:'var(--warning, #C8963E)' }}>\u26A0</span> Your API key is stored in plaintext in your browser&apos;s localStorage. Anyone with access to your device can read it. Keep your key secure and never share it.
+            </div>
           </MenuDropdown>
 
           <button className="menu-bar-btn help-trigger" onClick={() => setHelpOpen(true)} aria-label="Open help and usage guide">

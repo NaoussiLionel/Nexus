@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { Compass } from 'lucide-react';
+import { logError } from '../utils/helpers';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -12,7 +13,7 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('[ErrorBoundary]', error, info);
+    logError('ErrorBoundary', { message: error?.message, stack: error?.stack, componentStack: info?.componentStack });
   }
 
   render() {

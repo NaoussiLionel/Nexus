@@ -61,7 +61,7 @@ export default function MindNode({ node }) {
       setTimeout(fitView, 50);
     }
     pushHistory();
-    const t = JSON.parse(JSON.stringify(tree));
+    const t = structuredClone(tree);
     const n = findNode(t, node.id);
     if (!n) return;
     const child = makeNode('New item', '', n.depth + 1);
@@ -82,7 +82,7 @@ export default function MindNode({ node }) {
   const handleToggleCollapse = useCallback((e) => {
     e.stopPropagation();
     if (!hasChildren) return;
-    const t = JSON.parse(JSON.stringify(tree));
+    const t = structuredClone(tree);
     const n = findNode(t, node.id);
     if (!n) return;
     n.collapsed = !n.collapsed;
@@ -102,7 +102,7 @@ export default function MindNode({ node }) {
     e.stopPropagation();
     if (node.id === tree?.id) return;
     pushHistory();
-    const t = JSON.parse(JSON.stringify(tree));
+    const t = structuredClone(tree);
     removeNodeFromTree(t, node.id);
     setTree(t);
     persist();
@@ -119,7 +119,7 @@ export default function MindNode({ node }) {
     e.stopPropagation();
     const text = clInput.trim();
     if (!text) return;
-    const t = JSON.parse(JSON.stringify(tree));
+    const t = structuredClone(tree);
     const n = findNode(t, node.id);
     if (!n) return;
     n.checklist = n.checklist || [];
@@ -186,7 +186,7 @@ export default function MindNode({ node }) {
               {checklist.map(item => (
                 <label key={item.id} className="ncle-item" onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={item.checked} onChange={() => {
-                    const t = JSON.parse(JSON.stringify(tree));
+                    const t = structuredClone(tree);
                     const n = findNode(t, node.id);
                     if (!n) return;
                     const ci = n.checklist?.find(c => c.id === item.id);

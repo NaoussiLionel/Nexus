@@ -63,3 +63,31 @@ export function extractResponseText(resp) {
   if (resp && typeof resp.text === 'string') return resp.text;
   try { return String(resp); } catch { return ''; }
 }
+
+const ERROR_LOG_KEY = 'nexus_error_log';
+const MAX_ERRORS = 50;
+
+export function logError(context, error) {
+  const entry = {
+    context,
+    message: error?.message || String(error),
+    stack: error?.stack || '',
+    time: Date.now(),
+    url: location.href,
+  };
+  console.error('[Nexus]', context, error);
+  try {
+    const log = JSON.parse(localStorage.getItem(ERROR_LOG_KEY) || '[]');
+    log.push(entry);
+    if (log.length > MAX_ERRORS) log.splice(0, log.length - MAX_ERRORS);
+    localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(log));
+  } catch { /* storage full */ }
+}
+
+export function getErrorLog() {
+  try { return JSON.parse(localStorage.getItem(ERROR_LOG_KEY) || '[]'); } catch { return []; }
+}
+
+export function clearErrorLog() {
+  try { localStorage.removeItem(ERROR_LOG_KEY); } catch { /* ignore */ }
+}
