@@ -108,11 +108,11 @@ export default function Canvas() {
     if (e.shiftKey) {
       const rect = e.currentTarget.getBoundingClientRect();
       marqueeRef.current = {
-        startX: e.clientX, startY: e.clientY,
-        curX: e.clientX, curY: e.clientY,
+        startX: e.clientX - rect.left, startY: e.clientY - rect.top,
+        curX: e.clientX - rect.left, curY: e.clientY - rect.top,
         rect
       };
-      setMarqueeBox({ startX: e.clientX, startY: e.clientY, curX: e.clientX, curY: e.clientY });
+      setMarqueeBox({ startX: e.clientX - rect.left, startY: e.clientY - rect.top, curX: e.clientX - rect.left, curY: e.clientY - rect.top });
       e.stopPropagation();
       return;
     }
@@ -147,9 +147,9 @@ export default function Canvas() {
     }
     const mq = marqueeRef.current;
     if (mq) {
-      mq.curX = e.clientX;
-      mq.curY = e.clientY;
-      setMarqueeBox({ startX: mq.startX, startY: mq.startY, curX: e.clientX, curY: e.clientY });
+      mq.curX = e.clientX - mq.rect.left;
+      mq.curY = e.clientY - mq.rect.top;
+      setMarqueeBox({ startX: mq.startX, startY: mq.startY, curX: mq.curX, curY: mq.curY });
       e.stopPropagation();
       return;
     }
@@ -181,12 +181,11 @@ export default function Canvas() {
         const top = Math.min(mq.startY, mq.curY);
         const bottom = Math.max(mq.startY, mq.curY);
         const ids = new Set();
-        const r = mq.rect;
         visibleIds.forEach(id => {
           const n = findNode(t, id);
           if (!n) return;
           const sx = n.x * s + canvas.x;
-          const sy = n.y * s + r.top;
+          const sy = n.y * s + canvas.y;
           const hw = nodeWidth(n.depth) * s / 2;
           const nh = nodeHeight(n.depth) * s;
           if (sx + hw >= left && sx - hw <= right && sy + nh >= top && sy <= bottom) {
@@ -200,7 +199,7 @@ export default function Canvas() {
       return;
     }
     canvasPointerUp(e);
-  }, [canvasPointerUp, persist, setSelectedId, openDrawer, visibleIds, canvas.x, setSelectedIds]);
+  }, [canvasPointerUp, persist, setSelectedId, openDrawer, visibleIds, canvas.x, canvas.y, setSelectedIds]);
 
   useEffect(() => {
     window.addEventListener('pointermove', handlePointerMove);
