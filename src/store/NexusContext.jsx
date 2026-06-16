@@ -45,6 +45,9 @@ export function NexusProvider({ children }) {
   const [customModel, setCustomModel] = useState(() => {
     try { return localStorage.getItem('nexus_custom_model') || 'gemini-2.5-flash'; } catch { return 'gemini-2.5-flash'; }
   });
+  const [maxDepth, setMaxDepth] = useState(() => {
+    try { return parseInt(localStorage.getItem('nexus_max_depth') || '3', 10); } catch { return 3; }
+  });
   const [resetArmed, setResetArmed] = useState(false);
   const [documents, setDocuments] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nexus_docs_meta') || '[]'); } catch { return []; }
@@ -75,6 +78,9 @@ export function NexusProvider({ children }) {
   useEffect(() => {
     try { localStorage.setItem('nexus_drawer_width', String(drawerWidth)); } catch { /* ignore */ }
   }, [drawerWidth]);
+  useEffect(() => {
+    try { localStorage.setItem('nexus_max_depth', String(maxDepth)); } catch { /* ignore */ }
+  }, [maxDepth]);
 
   const setTree = useCallback((t) => {
     setTreeRaw(t);
@@ -423,7 +429,7 @@ export function NexusProvider({ children }) {
     setPendingActions(prev => {
       if (!prev) return prev;
       const { actions, layout: actLayout } = prev;
-      const result = applyTreeActions(tree, actions, actLayout);
+      const result = applyTreeActions(tree, actions, actLayout, maxDepth);
       setTree(result.tree);
       if (result.isolatedId) setIsolatedId(result.isolatedId);
       const summary = describeActionsSummary(actions);
@@ -437,7 +443,7 @@ export function NexusProvider({ children }) {
       persist();
       return null;
     });
-  }, [tree, setTree, setIsolatedId, setChat, addToast, fitView, persist]);
+  }, [tree, setTree, setIsolatedId, setChat, addToast, fitView, persist, maxDepth]);
 
   const cancelPendingActionsCB = useCallback(() => {
     setPendingActions(prev => {
@@ -469,6 +475,7 @@ export function NexusProvider({ children }) {
     geminiKey, setGeminiKey,
     provider, setProvider, customModel, setCustomModel,
     resetArmed, setResetArmed,
+    maxDepth, setMaxDepth,
     documents, activeDocId, sidebarWidth, setSidebarWidth, drawerWidth, setDrawerWidth,
     pushHistory, undo, redo, persist, loadFromStorage, resetProject,
     addToast, removeToast,
@@ -477,7 +484,7 @@ export function NexusProvider({ children }) {
     persistDoc, switchDocument, createDocument, deleteDocument, renameDocument,
   }), [tree, nodeMap, chat, model, canvas, isolatedId, selectedId, selectedIds, history,
       redoStack, busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, layout, searchQuery,
-      pendingActions, geminiKey, provider, customModel, resetArmed,
+      pendingActions, geminiKey, provider, customModel, resetArmed, maxDepth,
       documents, activeDocId, sidebarWidth, drawerWidth,
       confirmPendingActionsCB, cancelPendingActionsCB,
       setTree, setNodeMap, setChat, setModel, setCanvas, setIsolatedId,

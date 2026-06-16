@@ -4,7 +4,7 @@ import {
   makeNode, findNode, findParent, ancestorPath,
   positionNewNodes, buildTreeOutline,
 } from '../utils/tree';
-import { REPLY_MARK, ACTIONS_MARK, SEARCH_MARK, MAX_VISIBLE_DEPTH } from '../utils/constants';
+import { REPLY_MARK, ACTIONS_MARK, SEARCH_MARK, DEFAULT_MAX_DEPTH } from '../utils/constants';
 import { geminiChat } from './useGemini';
 import { openaiChat } from './useOpenAI';
 
@@ -100,6 +100,7 @@ export function useAI() {
     setPendingActions,
     geminiKey,
     provider, customModel,
+    maxDepth,
   } = useNexus();
 
   const sendChatMessage = useCallback(async (userText) => {
@@ -290,7 +291,8 @@ export function useAI() {
       });
       node.collapsed = false;
       node.expanding = false;
-      if (node.depth >= MAX_VISIBLE_DEPTH - 1) {
+      const md = maxDepth || DEFAULT_MAX_DEPTH;
+      if (node.depth >= md - 1) {
         setIsolatedId(node.id);
       }
       positionNewNodes(node);
@@ -306,7 +308,7 @@ export function useAI() {
       setTree({ ...tree });
     }
     setBusy(false);
-  }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId, geminiKey, provider, customModel]);
+  }, [tree, chat, model, setTree, setBusy, addToast, pushHistory, persist, fitView, setRecentlyAddedIds, setIsolatedId, geminiKey, provider, customModel, maxDepth]);
 
   const elaborateNodeAI = useCallback(async (nodeId, onContent) => {
     const node = findNode(tree, nodeId);

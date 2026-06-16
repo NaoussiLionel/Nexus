@@ -7,7 +7,7 @@ import {
   removeNodeFromTree
 } from '../utils/tree';
 import { nodeWidth, nodeHeight } from '../utils/helpers';
-import { Compass, Trash2 } from 'lucide-react';
+import { Compass, Trash2, ChevronRight } from 'lucide-react';
 import Connectors from './Connectors';
 import MindNode from './MindNode';
 
@@ -379,6 +379,18 @@ export default function Canvas() {
           <kbd>Ctrl+Z</kbd> undo &middot; <kbd>Ctrl+Y</kbd> redo &middot; <kbd>Shift</kbd>+drag select &middot; <kbd>Del</kbd> remove
         </div>
       )}
+
+      <button className="sidebar-toggle-btn" aria-label="Toggle AI chat panel" title="Toggle AI chat" onClick={() => {
+        if (window.innerWidth <= 1100) {
+          document.body.classList.remove('sidebar-hidden');
+          document.body.classList.toggle('sidebar-open');
+        } else {
+          document.body.classList.remove('sidebar-open');
+          document.body.classList.toggle('sidebar-hidden');
+        }
+      }}>
+        <ChevronRight size={16} />
+      </button>
 
       <div className="title-block" id="titleBlock" title="Click to fit view. Shortcuts: Ctrl+Z undo, Shift+drag box-select, Delete remove selected" onClick={fitView}>
         <div className="tb-name" id="tbName">{tree?.title || 'No project yet'}</div>

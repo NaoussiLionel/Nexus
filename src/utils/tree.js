@@ -1,5 +1,5 @@
 import { generateId, nodeWidth, nodeHeight, truncate } from './helpers';
-import { H_GAP, ROW_GAP, MAX_VISIBLE_DEPTH } from './constants';
+import { H_GAP, ROW_GAP, DEFAULT_MAX_DEPTH } from './constants';
 
 export function makeNode(title, description, depth, checklist) {
   return {
@@ -244,10 +244,11 @@ export function buildTreeOutline(node, depth) {
   return lines;
 }
 
-export function applyActions(tree, actions, layout) {
+export function applyActions(tree, actions, layout, maxDepth) {
   let current = tree;
   let replaced = false;
   let newIsolatedId = null;
+  const md = maxDepth || DEFAULT_MAX_DEPTH;
   actions.forEach(act => {
     if (!act || typeof act !== 'object') return;
     switch (act.type) {
@@ -268,7 +269,7 @@ export function applyActions(tree, actions, layout) {
           });
           parent.collapsed = false;
           positionNewNodes(parent);
-          if (parent.depth >= MAX_VISIBLE_DEPTH - 1 && parent.id !== 'root') {
+          if (parent.depth >= md - 1 && parent.id !== 'root') {
             newIsolatedId = parent.id;
           }
         }

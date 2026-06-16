@@ -21,7 +21,7 @@ export const SUGGESTIONS = [
 
 export const H_GAP = 40;
 export const ROW_GAP = 72;
-export const MAX_VISIBLE_DEPTH = 3;
+export const DEFAULT_MAX_DEPTH = 3;
 
 export const LAYOUTS = [
   { id: 'tree', label: 'Tree \u2193', desc: 'Top-down hierarchy' },

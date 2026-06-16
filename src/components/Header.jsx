@@ -9,7 +9,7 @@ import { toPng } from 'html-to-image';
 import {
   Undo2, Redo2, LayoutGrid, Maximize, ZoomOut, ZoomIn,
   Download, FileDown, Upload, Image, Package, Search, X, Plus,
-  HelpCircle, MessageSquare, FileText, History,
+  HelpCircle, FileText, History,
   Settings, KeyRound, Cpu, Trash2, Compass, ChevronRight
 } from 'lucide-react';
 
@@ -81,6 +81,7 @@ export default function Header() {
     searchQuery, setSearchQuery,
     documents, activeDocId, switchDocument, createDocument,
     model, geminiKey, setGeminiKey, provider, setProvider, customModel, setCustomModel, setModel,
+    maxDepth, setMaxDepth,
   } = useNexus();
   const resetTimer = useRef(null);
   const importRef = useRef(null);
@@ -174,16 +175,6 @@ export default function Header() {
     reader.readAsText(file);
     e.target.value = '';
   }, [layout, pushHistory, setTree, setChat, persist, addToast, fitView]);
-
-  const handleSidebarToggle = useCallback(() => {
-    if (window.innerWidth <= 1100) {
-      document.body.classList.remove('sidebar-hidden');
-      document.body.classList.toggle('sidebar-open');
-    } else {
-      document.body.classList.remove('sidebar-open');
-      document.body.classList.toggle('sidebar-hidden');
-    }
-  }, []);
 
   const loadSession = useCallback((id) => {
     try {
@@ -291,6 +282,19 @@ export default function Header() {
             <MenuItem icon={<ZoomOut size={13} />} label="Zoom out" onClick={zoomOut} />
             <MenuDivider />
             <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)' }}>Max depth: {maxDepth}</span>
+            </div>
+            <div style={{ padding:'4px 10px 8px', display:'flex', gap:'6px', alignItems:'center' }}>
+              {[2,3,4,5].map(d => (
+                <button key={d} className={`menu-bar-btn${maxDepth === d ? ' active' : ''}`}
+                  onClick={() => setMaxDepth(d)}
+                  style={{ minWidth:'28px', fontWeight: maxDepth === d ? 700 : 400, background: maxDepth === d ? 'var(--bp-600)' : 'var(--bp-700)' }}>
+                  {d}
+                </button>
+              ))}
+            </div>
+            <MenuDivider />
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
               <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)' }}>Search nodes</span>
             </div>
             <div style={{ padding:'4px 10px 8px' }}>
@@ -355,9 +359,6 @@ export default function Header() {
             </button>
           )}
         </div>
-        <button className={`header-chat-btn${searchQuery !== '' ? ' active' : ''}`} aria-label="Toggle AI chat panel" title="Toggle AI chat" onClick={handleSidebarToggle}>
-          <MessageSquare size={17} />
-        </button>
       </div>
 
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
