@@ -5,7 +5,7 @@ import {
   positionNewNodes, buildTreeOutline,
 } from '../utils/tree';
 import { REPLY_MARK, ACTIONS_MARK, SEARCH_MARK, DEFAULT_MAX_DEPTH } from '../utils/constants';
-import { logError } from '../utils/helpers';
+import { logError, generateId } from '../utils/helpers';
 import { geminiChat } from './useGemini';
 import { openaiChat } from './useOpenAI';
 
@@ -156,8 +156,8 @@ export function useAI() {
       ].join('\n');
     }
 
-    setChat(prev => [...prev, { role: 'user', text: userText }]);
-    const aiMsg = { role: 'ai', text: '', reasoning: '', pending: true };
+    setChat(prev => [...prev, { role: 'user', text: userText, id: generateId('msg') }]);
+    const aiMsg = { role: 'ai', text: '', reasoning: '', pending: true, id: generateId('msg') };
     setChat(prev => [...prev, aiMsg]);
     setBusy(true);
 

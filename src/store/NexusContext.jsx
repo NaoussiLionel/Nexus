@@ -18,16 +18,26 @@ function describeActionsSummary(actions) {
 }
 
 export function NexusProvider({ children }) {
+  // ===== Tree & Node State =====
   const [tree, setTreeRaw] = useState(null);
   const [nodeMap, setNodeMap] = useState(new Map());
+
+  // ===== Chat & AI State =====
   const [chat, setChat] = useState([]);
   const [model, setModel] = useState(DEFAULT_MODEL);
+
+  // ===== Canvas & Viewport =====
   const [canvas, setCanvas] = useState({ scale: 1, x: 0, y: 0 });
+  // ===== Selection & Isolation =====
   const [isolatedId, setIsolatedId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // ===== Undo / Redo =====
   const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
+
+  // ===== UI State =====
   const [busy, setBusy] = useState(false);
   const [recentlyAddedIds, setRecentlyAddedIds] = useState(new Set());
   const [lastSaved, setLastSaved] = useState(null);
@@ -36,8 +46,16 @@ export function NexusProvider({ children }) {
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingActions, setPendingActions] = useState(null);
+  const decodeKey = (raw) => {
+    if (!raw) return '';
+    try { return atob(raw).split('').reverse().join(''); } catch { return raw; }
+  };
+  const encodeKey = (key) => {
+    if (!key) return '';
+    try { return btoa(key.split('').reverse().join('')); } catch { return key; }
+  };
   const [geminiKey, setGeminiKey] = useState(() => {
-    try { return localStorage.getItem('nexus_gemini_key') || ''; } catch { return ''; }
+    try { return decodeKey(localStorage.getItem('nexus_gemini_key') || ''); } catch { return ''; }
   });
   const [provider, setProvider] = useState(() => {
     try { return localStorage.getItem('nexus_provider') || 'puter'; } catch { return 'puter'; }
@@ -49,6 +67,8 @@ export function NexusProvider({ children }) {
     try { return parseInt(localStorage.getItem('nexus_max_depth') || '3', 10); } catch { return 3; }
   });
   const [resetArmed, setResetArmed] = useState(false);
+
+  // ===== Document & Persistence State =====
   const [documents, setDocuments] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nexus_docs_meta') || '[]'); } catch { return []; }
   });
@@ -64,7 +84,7 @@ export function NexusProvider({ children }) {
 
   const saveTimer = useRef(null);
   useEffect(() => {
-    try { localStorage.setItem('nexus_gemini_key', geminiKey || ''); } catch { /* ignore */ }
+    try { localStorage.setItem('nexus_gemini_key', encodeKey(geminiKey || '')); } catch { /* ignore */ }
   }, [geminiKey]);
   useEffect(() => {
     try { localStorage.setItem('nexus_provider', provider); } catch { /* ignore */ }
@@ -147,6 +167,7 @@ export function NexusProvider({ children }) {
     });
   }, [setTree, addToast, tree]);
 
+  // ===== Persistence (localStorage + Puter) =====
   const SAVE_LOCAL_KEY = 'nexus_architect_data';
 
   const persist = useCallback(() => {
@@ -458,6 +479,7 @@ export function NexusProvider({ children }) {
     });
   }, [setChat]);
 
+  // ===== Context Value =====
   const ctx = useMemo(() => ({
     tree, setTree, nodeMap, setNodeMap,
     chat, setChat, model, setModel,
@@ -497,6 +519,7 @@ export function NexusProvider({ children }) {
   return <NexusContext.Provider value={ctx}>{children}</NexusContext.Provider>;
 }
 
+// ===== Hook Export =====
 export function useNexus() {
   const ctx = useContext(NexusContext);
   if (!ctx) throw new Error('useNexus must be used within NexusProvider');

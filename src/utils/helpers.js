@@ -35,11 +35,41 @@ export function downloadFile(content, filename, mime) {
   setTimeout(() => { if (!isDataUrl) URL.revokeObjectURL(url); a.remove(); }, 150);
 }
 
+const ALLOWED_HTML_TAGS = new Set(['a', 'strong', 'em', 'code', 'label', 'span', 'br', 'input']);
+
+function sanitizeHtml(html) {
+  return html.replace(/<(\/?)(\w+)([^>]*)>/g, (full, slash, tag, rawAttrs) => {
+    const lower = tag.toLowerCase();
+    if (!ALLOWED_HTML_TAGS.has(lower)) return '';
+    if (lower === 'input' || lower === 'br') {
+      return '<' + slash + lower + '>';
+    }
+    if (lower === 'a') {
+      let safe = '';
+      const hrefMatch = rawAttrs.match(/href\s*=\s*"([^"]+)"/i);
+      if (hrefMatch) {
+        try {
+          const url = new URL(hrefMatch[1], 'https://example.com');
+          if (url.protocol === 'http:' || url.protocol === 'https:') {
+            safe += ' href="' + hrefMatch[1] + '"';
+          }
+        } catch { /* drop href */ }
+      }
+      safe += ' target="_blank" rel="noopener noreferrer"';
+      return '<' + slash + lower + safe + '>';
+    }
+    return '<' + slash + lower + '>';
+  });
+}
+
 export function renderInline(text, msgIdx, checkboxes) {
   let safe = escapeHtml(text);
   let cbIdx = 0;
   safe = safe.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
-    if (/^(javascript|data|vbscript):/i.test(url)) url = '#';
+    try {
+      const parsed = new URL(url, 'https://example.com');
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') url = '#';
+    } catch { url = '#'; }
     return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
   });
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -52,6 +82,7 @@ export function renderInline(text, msgIdx, checkboxes) {
   });
   safe = safe.replace(/^- (.+)/gm, '<span style="display:block;padding-left:12px;position:relative">&bull; $1</span>');
   safe = safe.replace(/\n/g, '<br>');
+  safe = sanitizeHtml(safe);
   return safe;
 }
 

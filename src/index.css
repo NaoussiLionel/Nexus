@@ -1,3 +1,4 @@
+/* ===== CSS Variables & Base ===== */
 :root{
   --bp-900:#0A1722;
   --bp-800:#102233;
@@ -46,10 +47,13 @@ textarea,input,select{ font-family:inherit; }
 ::-webkit-scrollbar-thumb:hover{ background:var(--bp-500); }
 :focus-visible{ outline:2px solid var(--brass); outline-offset:2px; }
 
+/* ===== Header & Navigation ===== */
 .app-header{
   height:60px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
   padding:0 18px; background:var(--bp-800); border-bottom:1px solid var(--bp-600); z-index:60;
 }
+
+/* ===== Icon & Action Buttons ===== */
 .brand{ display:flex; align-items:center; gap:12px; }
 .brand-mark{
   width:38px; height:38px; border-radius:9px; background:rgba(224,164,88,0.15);
@@ -253,6 +257,7 @@ textarea,input,select{ font-family:inherit; }
 @keyframes helpSlideUp{ from{ opacity:0; transform:translateY(20px) scale(.97); } to{ opacity:1; transform:translateY(0) scale(1); } }
 @keyframes slideIn{ from{ opacity:0; transform:translateX(-4px); } to{ opacity:1; transform:translateX(0); } }
 
+/* ===== Resize Handles ===== */
 .sidebar{ position:relative; }
 .sidebar-resize-handle{
   position:absolute; top:0; right:0; bottom:0; width:4px; cursor:col-resize; z-index:10;
@@ -271,6 +276,8 @@ textarea,input,select{ font-family:inherit; }
 .mobile-only{ display:none; }
 
 .app-main{ flex:1; display:flex; overflow:hidden; position:relative; }
+
+/* ===== Canvas & Zoom ===== */
 .canvas-wrap{
   flex:1; position:relative; overflow:hidden; background:var(--bp-900); cursor:grab;
 }
@@ -295,6 +302,7 @@ textarea,input,select{ font-family:inherit; }
 .connector.depth-2 ~ .connector-dot{ fill:var(--ink-faint); opacity:.5; }
 .nodes-layer{ position:absolute; top:0; left:0; }
 
+/* ===== Mind Nodes ===== */
 .mind-node{
   position:absolute; transform:translate(-50%,0);
   display:flex; flex-direction:column; gap:6px; padding:12px 14px;

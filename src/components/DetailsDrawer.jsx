@@ -129,7 +129,10 @@ export default function DetailsDrawer() {
   useEffect(() => {
     if (drawerNodeId) {
       const el = document.getElementById('detailsTitle');
-      if (el) setTimeout(() => el.focus(), 150);
+      if (el) {
+        const t = setTimeout(() => el.focus(), 150);
+        return () => clearTimeout(t);
+      }
     }
   }, [drawerNodeId]);
 

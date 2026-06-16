@@ -117,7 +117,7 @@ export default function Sidebar() {
           </div>
         )}
         {chat.map((msg, _idx) => (
-          <div key={_idx} className={`msg ${msg.role === 'user' ? 'msg-user' : 'msg-ai'}`}>
+          <div key={msg.id || _idx} className={`msg ${msg.role === 'user' ? 'msg-user' : 'msg-ai'}`}>
             <div className="msg-avatar">
               {msg.role === 'user' ? <User size={14} /> : <Compass size={14} />}
             </div>

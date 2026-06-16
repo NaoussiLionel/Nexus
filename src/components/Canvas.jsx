@@ -1,4 +1,5 @@
 import { useCallback, useRef, useEffect, useMemo, useState } from 'react';
+import { produce } from 'immer';
 import { useNexus } from '../store/NexusContext';
 import { useCanvas } from '../hooks/useCanvas';
 import {
@@ -231,14 +232,15 @@ export default function Canvas() {
         if (!t) return;
         if (selectedIds.has(t.id)) return;
         pushHistory();
-        const copy = structuredClone(t);
         let removed = 0;
-        selectedIds.forEach(id => {
-          if (id === copy.id) return;
-          removeNodeFromTree(copy, id);
-          removed++;
+        const updated = produce(t, draft => {
+          selectedIds.forEach(id => {
+            if (id === draft.id) return;
+            removeNodeFromTree(draft, id);
+            removed++;
+          });
         });
-        setTree(copy);
+        setTree(updated);
         setSelectedIds(new Set());
         setSelectedId(null);
         closeDrawer();
@@ -269,17 +271,20 @@ export default function Canvas() {
             } else {
               const parent = selectedId ? findNode(t, selectedId) || t : t;
               pushHistory();
-              const copy = structuredClone(t);
-              const p = findNode(copy, parent.id);
-              if (!p) return;
-              const child = makeNode('New item', '', p.depth + 1);
-              p.children = p.children || [];
-              p.children.push(child);
-              p.collapsed = false;
-              recomputeLayout(copy, layout);
-              setTree(copy);
+              let childId = null;
+              const updated = produce(t, draft => {
+                const p = findNode(draft, parent.id);
+                if (!p) return;
+                const c = makeNode('New item', '', p.depth + 1);
+                childId = c.id;
+                p.children = p.children || [];
+                p.children.push(c);
+                p.collapsed = false;
+              });
+              recomputeLayout(updated, layout);
+              setTree(updated);
               persist();
-              openDrawer(child.id);
+              if (childId) openDrawer(childId);
               setTimeout(() => { document.getElementById('detailsTitle')?.focus(); }, 100);
             }
             break;
@@ -289,7 +294,10 @@ export default function Canvas() {
               const ids = new Set();
               visibleIds.forEach(id => ids.add(id));
               setSelectedIds(ids);
-              if (ids.size) setSelectedId([...ids][0]);
+              if (ids.size) {
+                setSelectedId([...ids][0]);
+                if (ids.size > 1) addToast('Selected ' + ids.size + ' nodes');
+              }
             }
             break;
         }

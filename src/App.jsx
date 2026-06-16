@@ -3,6 +3,7 @@ import { useNexus } from './store/NexusContext';
 import Header from './components/Header';
 import Canvas from './components/Canvas';
 import ErrorBoundary from './components/ErrorBoundary';
+import { SidebarSkeleton, DrawerSkeleton } from './components/Skeleton';
 
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const DetailsDrawer = lazy(() => import('./components/DetailsDrawer'));
@@ -20,11 +21,11 @@ export default function App() {
     <ErrorBoundary>
       <Header />
       <main className="app-main">
-        <Suspense fallback={null}>
+        <Suspense fallback={<SidebarSkeleton />}>
           <Sidebar />
         </Suspense>
         <Canvas />
-        <Suspense fallback={null}>
+        <Suspense fallback={<DrawerSkeleton />}>
           <DetailsDrawer />
         </Suspense>
       </main>

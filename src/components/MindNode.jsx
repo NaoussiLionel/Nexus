@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { produce } from 'immer';
 import { useNexus } from '../store/NexusContext';
 import { useAI } from '../hooks/useAI';
 import {
@@ -61,17 +62,19 @@ export default function MindNode({ node }) {
       setTimeout(fitView, 50);
     }
     pushHistory();
-    const t = structuredClone(tree);
-    const n = findNode(t, node.id);
-    if (!n) return;
-    const child = makeNode('New item', '', n.depth + 1);
-    n.children = n.children || [];
-    n.children.push(child);
-    n.collapsed = false;
-    recomputeLayout(t, layout);
-    setTree(t);
+    const updated = produce(tree, draft => {
+      const n = findNode(draft, node.id);
+      if (!n) return;
+      const child = makeNode('New item', '', n.depth + 1);
+      n.children = n.children || [];
+      n.children.push(child);
+      n.collapsed = false;
+    });
+    recomputeLayout(updated, layout);
+    setTree(updated);
     persist();
-    openDrawer(child.id);
+    const addedChild = findNode(updated, node.id)?.children?.slice(-1)[0];
+    if (addedChild) openDrawer(addedChild.id);
     setTimeout(() => {
       const el = document.getElementById('detailsTitle');
       el?.focus();
@@ -82,12 +85,13 @@ export default function MindNode({ node }) {
   const handleToggleCollapse = useCallback((e) => {
     e.stopPropagation();
     if (!hasChildren) return;
-    const t = structuredClone(tree);
-    const n = findNode(t, node.id);
-    if (!n) return;
-    n.collapsed = !n.collapsed;
-    recomputeLayout(t, layout);
-    setTree(t);
+    const updated = produce(tree, draft => {
+      const n = findNode(draft, node.id);
+      if (!n) return;
+      n.collapsed = !n.collapsed;
+    });
+    recomputeLayout(updated, layout);
+    setTree(updated);
     persist();
   }, [node.id, hasChildren, tree, setTree, persist, layout]);
 
@@ -102,9 +106,10 @@ export default function MindNode({ node }) {
     e.stopPropagation();
     if (node.id === tree?.id) return;
     pushHistory();
-    const t = structuredClone(tree);
-    removeNodeFromTree(t, node.id);
-    setTree(t);
+    const updated = produce(tree, draft => {
+      removeNodeFromTree(draft, node.id);
+    });
+    setTree(updated);
     persist();
     addToast('Removed "' + node.title + '"', null, { label: 'Undo', onClick: () => undo() });
   }, [node.id, node.title, tree, setTree, pushHistory, persist, addToast, undo]);
@@ -119,12 +124,13 @@ export default function MindNode({ node }) {
     e.stopPropagation();
     const text = clInput.trim();
     if (!text) return;
-    const t = structuredClone(tree);
-    const n = findNode(t, node.id);
-    if (!n) return;
-    n.checklist = n.checklist || [];
-    n.checklist.push({ id: generateId('cl'), text, checked: false });
-    setTree(t);
+    const updated = produce(tree, draft => {
+      const n = findNode(draft, node.id);
+      if (!n) return;
+      n.checklist = n.checklist || [];
+      n.checklist.push({ id: generateId('cl'), text, checked: false });
+    });
+    setTree(updated);
     persist();
     setClInput('');
     setShowChecklist(false);
@@ -186,12 +192,13 @@ export default function MindNode({ node }) {
               {checklist.map(item => (
                 <label key={item.id} className="ncle-item" onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={item.checked} onChange={() => {
-                    const t = structuredClone(tree);
-                    const n = findNode(t, node.id);
-                    if (!n) return;
-                    const ci = n.checklist?.find(c => c.id === item.id);
-                    if (ci) ci.checked = !ci.checked;
-                    setTree(t);
+                    const updated = produce(tree, draft => {
+                      const n = findNode(draft, node.id);
+                      if (!n) return;
+                      const ci = n.checklist?.find(c => c.id === item.id);
+                      if (ci) ci.checked = !ci.checked;
+                    });
+                    setTree(updated);
                     persist();
                   }} />
                   <span className={item.checked ? 'done' : ''}>{item.text}</span>
