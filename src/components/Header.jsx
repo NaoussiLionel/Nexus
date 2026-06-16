@@ -80,7 +80,7 @@ export default function Header() {
     fitView, zoomIn, zoomOut, undo, redo, history, redoStack, layout, setLayout,
     searchQuery, setSearchQuery,
     documents, activeDocId, switchDocument, createDocument,
-    geminiKey, setGeminiKey, provider, setProvider, customModel, setCustomModel, setModel,
+    model, geminiKey, setGeminiKey, provider, setProvider, customModel, setCustomModel, setModel,
   } = useNexus();
   const resetTimer = useRef(null);
   const importRef = useRef(null);
