@@ -210,6 +210,13 @@ textarea,input,select{ font-family:inherit; }
   font-size:.78rem; line-height:1.5; color:var(--ink-dim);
 }
 .help-modal-body li strong{ color:var(--ink); font-weight:600; }
+.help-modal-body ol{ margin:0; padding:0 0 0 18px; display:flex; flex-direction:column; gap:8px; }
+.help-modal-body ol li{ font-size:.78rem; line-height:1.5; color:var(--ink-dim); }
+.help-table{ width:100%; border-collapse:collapse; font-size:.72rem; }
+.help-table th{ text-align:left; font-family:var(--font-mono); font-size:.62rem; letter-spacing:.08em; color:var(--ink-faint); text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--bp-600); }
+.help-table td{ padding:6px 8px; color:var(--ink-dim); line-height:1.5; border-bottom:1px solid var(--bp-700); vertical-align:top; }
+.help-table td strong{ color:var(--ink); }
+.help-table code{ font-size:.68rem; color:var(--brass); }
 .help-modal-body kbd{
   background:var(--bp-700); border:1px solid var(--bp-600); padding:1px 6px;
   border-radius:4px; font-family:var(--font-mono); font-size:.68rem; color:var(--ink);
@@ -751,9 +758,25 @@ body.sidebar-hidden .sidebar{ width:0 !important; opacity:0; border-right:none; 
 .checklist-add-btn:hover{ border-color:var(--brass); color:var(--brass); }
 .checklist-add-btn svg{ width:13px; height:13px; }
 
-.node-checklist{ display:flex; align-items:center; gap:4px; font-family:var(--font-mono); font-size:.65rem; color:var(--ink-faint); margin-top:2px; }
+.node-checklist{ display:flex; align-items:center; gap:4px; font-family:var(--font-mono); font-size:.65rem; color:var(--ink-faint); margin-top:2px; cursor:pointer; padding:2px 4px; border-radius:4px; transition:.15s; }
+.node-checklist:hover{ background:var(--bp-700); }
+.node-checklist.has-items{ color:var(--brass); }
 .node-checklist-icon{ font-size:.7rem; }
 .mind-node.leaf .node-checklist{ color:#8A7A68; }
+.mind-node.leaf .node-checklist.has-items{ color:#B8A888; }
+.node-checklist-editor{ border-top:1px solid var(--bp-600); margin-top:6px; padding-top:6px; animation:fadeIn .15s ease; }
+.ncle-inline{ display:flex; gap:4px; }
+.ncle-input{ flex:1; height:26px; padding:0 8px; border-radius:4px; border:1px solid var(--bp-600); background:var(--bp-700); color:var(--ink); font-size:.72rem; outline:none; min-width:0; }
+.ncle-input:focus{ border-color:var(--brass); }
+.ncle-btn{ width:26px; height:26px; border-radius:4px; border:1px solid var(--bp-600); background:var(--bp-700); color:var(--ink-dim); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:.8rem; font-weight:600; transition:.15s; }
+.ncle-btn:hover{ border-color:var(--brass); color:var(--brass); }
+.ncle-items{ display:flex; flex-direction:column; gap:2px; margin-top:6px; max-height:120px; overflow-y:auto; }
+.ncle-item{ display:flex; align-items:center; gap:6px; padding:3px 4px; border-radius:4px; cursor:pointer; font-size:.72rem; color:var(--ink-dim); transition:.15s; }
+.ncle-item:hover{ background:var(--bp-700); }
+.ncle-item input{ accent-color:var(--brass); }
+.ncle-item .done{ text-decoration:line-through; color:var(--ink-faint); }
+.action-btn.active{ color:var(--brass); background:var(--bp-600); }
+@keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
 
 @keyframes slideDown{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:translateY(0); } }
 .doc-dropdown{ animation:slideDown .12s ease; }

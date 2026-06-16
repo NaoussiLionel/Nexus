@@ -1,14 +1,14 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useNexus } from '../store/NexusContext';
 import { useAI } from '../hooks/useAI';
-import { hashAngle, truncate, renderInline } from '../utils/helpers';
 import {
   makeNode, findNode, removeNodeFromTree,
   recomputeLayout, countDescendants
 } from '../utils/tree';
+import { hashAngle, truncate, renderInline, generateId } from '../utils/helpers';
 import {
   Sparkles, LoaderCircle, FileText, Plus, Crosshair, Minimize2, Trash2,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, CheckSquare
 } from 'lucide-react';
 
 export default function MindNode({ node }) {
@@ -19,6 +19,8 @@ export default function MindNode({ node }) {
     searchQuery,
   } = useNexus();
   const { expandNodeAI } = useAI();
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [clInput, setClInput] = useState('');
 
   const hasChildren = node.children?.length > 0;
   const depthClass = node.depth === 0 ? 'depth-0' : node.depth === 1 ? 'depth-1' : 'leaf';
@@ -107,6 +109,32 @@ export default function MindNode({ node }) {
     addToast('Removed "' + node.title + '"', null, { label: 'Undo', onClick: () => undo() });
   }, [node.id, node.title, tree, setTree, pushHistory, persist, addToast, undo]);
 
+  const handleClToggle = useCallback((e) => {
+    e.stopPropagation();
+    setShowChecklist(prev => !prev);
+    setClInput('');
+  }, []);
+
+  const handleClAdd = useCallback((e) => {
+    e.stopPropagation();
+    const text = clInput.trim();
+    if (!text) return;
+    const t = JSON.parse(JSON.stringify(tree));
+    const n = findNode(t, node.id);
+    if (!n) return;
+    n.checklist = n.checklist || [];
+    n.checklist.push({ id: generateId('cl'), text, checked: false });
+    setTree(t);
+    persist();
+    setClInput('');
+    setShowChecklist(false);
+  }, [clInput, tree, node.id, setTree, persist]);
+
+  const handleClKey = useCallback((e) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleClAdd(e); }
+    if (e.key === 'Escape') { e.stopPropagation(); setShowChecklist(false); setClInput(''); }
+  }, [handleClAdd]);
+
   return (
     <div className={classes.join(' ')} data-id={node.id} style={style} onClick={() => { setSelectedId(node.id); openDrawer(node.id); }}>
       <div className="node-actions" role="toolbar" aria-label="Node actions">
@@ -116,25 +144,23 @@ export default function MindNode({ node }) {
         <button className="action-btn" aria-label="Elaborate with AI" onClick={(e) => { e.stopPropagation(); openDrawer(node.id); }}>
           <FileText size={14} />
         </button>
-        <button className="action-btn" aria-label="Add item" onClick={handleAddChild}>
+        <button className="action-btn" aria-label="Add item" title="Add child node" onClick={handleAddChild}>
           <Plus size={14} />
+        </button>
+        <button className={`action-btn${showChecklist ? ' active' : ''}`} aria-label="Toggle checklist" title="Checklist" onClick={handleClToggle}>
+          <CheckSquare size={14} />
         </button>
         {node.depth > 0 && (
           <>
-            <button className="action-btn" aria-label={isolatedId === node.id ? 'Show full map' : 'Focus on this branch'} onClick={handleIsolate}>
+            <button className="action-btn" aria-label={isolatedId === node.id ? 'Show full map' : 'Focus on this branch'} title={isolatedId === node.id ? 'Show full map' : 'Focus on this branch'} onClick={handleIsolate}>
               {isolatedId === node.id ? <Minimize2 size={14} /> : <Crosshair size={14} />}
             </button>
-            <button className="action-btn danger" aria-label="Delete node" onClick={handleDelete}>
+            <button className="action-btn danger" aria-label="Delete node" title="Delete node" onClick={handleDelete}>
               <Trash2 size={14} />
             </button>
           </>
         )}
       </div>
-      {node.depth > 0 && (
-        <div className="sr-only" style={{position:'absolute',width:'1px',height:'1px',padding:0,margin:'-1px',overflow:'hidden',clip:'rect(0,0,0,0)',whiteSpace:'nowrap',border:0}}>
-          Node actions: expand with AI, add item, focus branch, delete
-        </div>
-      )}
       <div className="node-head">
         <span className="node-code">{codeLabel}</span>
         <span className="node-kind">{kindLabel}</span>
@@ -143,10 +169,36 @@ export default function MindNode({ node }) {
       {node.description && (
         <p className="node-desc" dangerouslySetInnerHTML={{ __html: renderInline(truncate(node.description, descMax)) }} />
       )}
-      {hasChecklist && (
-        <div className="node-checklist">
-          <span className="node-checklist-icon">{'\u2611'}</span>
-          <span className="node-checklist-text">{checkedCount}/{checklist.length}</span>
+      <div className={`node-checklist${hasChecklist ? ' has-items' : ''}`}>
+        <span className="node-checklist-icon">{'\u2611'}</span>
+        <span className="node-checklist-text">{hasChecklist ? `${checkedCount}/${checklist.length}` : 'Add items'}</span>
+      </div>
+      {showChecklist && (
+        <div className="node-checklist-editor" onClick={e => e.stopPropagation()}>
+          <div className="ncle-inline">
+            <input className="ncle-input" type="text" placeholder="Add checklist item\u2026"
+              value={clInput} onChange={e => setClInput(e.target.value)}
+              onKeyDown={handleClKey} autoFocus />
+            <button className="ncle-btn" onClick={handleClAdd} aria-label="Add checklist item">+</button>
+          </div>
+          {hasChecklist && (
+            <div className="ncle-items">
+              {checklist.map(item => (
+                <label key={item.id} className="ncle-item" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={item.checked} onChange={() => {
+                    const t = JSON.parse(JSON.stringify(tree));
+                    const n = findNode(t, node.id);
+                    if (!n) return;
+                    const ci = n.checklist?.find(c => c.id === item.id);
+                    if (ci) ci.checked = !ci.checked;
+                    setTree(t);
+                    persist();
+                  }} />
+                  <span className={item.checked ? 'done' : ''}>{item.text}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {hasChildren && (

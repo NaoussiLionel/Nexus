@@ -354,9 +354,9 @@ export default function Header() {
             value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')} />
           {searchQuery !== '' && (
-            <button className="header-search-clear" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
-              <X size={14} />
-            </button>
+        <button className="header-search-clear" aria-label="Clear search" title="Clear search" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
+          <X size={14} />
+        </button>
           )}
         </div>
       </div>
@@ -391,103 +391,161 @@ function HelpModal({ onClose }) {
     <div className="help-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="dialog" aria-modal="true" aria-label="Help and usage guide">
       <div className="help-modal" ref={ref}>
         <div className="help-modal-header">
-          <h2>Nexus Architect Guide</h2>
+          <h2>Nexus Architect \u2014 Full Documentation</h2>
           <button className="icon-btn" aria-label="Close help" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="help-modal-body">
           <section>
-            <h3>Getting started</h3>
-            <p>Nexus Architect turns project ideas into structured mind maps with AI. Describe what you want to build in the chat panel, and the AI will generate a hierarchical plan you can refine interactively.</p>
-            <ul>
-              <li>Type a project idea in the AI chat on the left panel and press <kbd>Enter</kbd></li>
-              <li>The AI will suggest a tree structure with nodes you can expand, edit, and reorganize</li>
-              <li>Click any node to open the inspector on the right and edit details</li>
-              <li>Drag nodes to rearrange them freely on the canvas</li>
-            </ul>
+            <h3>1. Getting started</h3>
+            <p>Nexus Architect is an AI-powered visual mind-mapping canvas for project planning. It turns rough ideas into structured, actionable plans using hierarchical trees, AI suggestions, and a freeform canvas.</p>
+            <ol>
+              <li><strong>Describe your project</strong> \u2014 Type what you want to build in the AI chat panel on the left and press Enter. The AI analyzes your input and generates a structured tree.</li>
+              <li><strong>Explore the map</strong> \u2014 The tree appears on the canvas. Click any node to inspect and edit it in the right-side details drawer.</li>
+              <li><strong>Refine with AI</strong> \u2014 Hover a node and click the sparkle icon to expand it into sub-items, or ask the chat for changes in natural language.</li>
+              <li><strong>Rearrange freely</strong> \u2014 Drag nodes to reposition them. Use <kbd>Shift</kbd>+drag to box-select multiple nodes and move them together.</li>
+              <li><strong>Save automatically</strong> \u2014 Your work is saved to localStorage every 30 seconds. Use File &gt; New document or Save session for snapshots.</li>
+            </ol>
           </section>
 
           <section>
-            <h3>Interface overview</h3>
+            <h3>2. Menu bar reference</h3>
             <div className="help-grid">
               <div className="help-card">
                 <div className="help-card-icon"><FileText size={16} /></div>
-                <div className="help-card-title">File menu</div>
-                <p>Create and switch between documents, export your project (JSON, Markdown, PNG, .nexus bundle), import existing projects, save and load sessions, and clear the current project.</p>
+                <div className="help-card-title">File</div>
+                <p>Document management (create, switch, rename), import/export (JSON, Markdown, PNG, .nexus bundle), session save/load, and clear project. Keyboard: <kbd>Ctrl+N</kbd> new document.</p>
               </div>
               <div className="help-card">
                 <div className="help-card-icon"><Settings size={16} /></div>
-                <div className="help-card-title">Edit menu</div>
-                <p>Undo and redo changes. Access preferences to set your Gemini API key for AI features.</p>
+                <div className="help-card-title">Edit</div>
+                <p>Undo (<kbd>Ctrl+Z</kbd>) and redo (<kbd>Ctrl+Y</kbd>). Preferences to configure Gemini API key for custom AI provider.</p>
               </div>
               <div className="help-card">
                 <div className="help-card-icon"><LayoutGrid size={16} /></div>
-                <div className="help-card-title">View menu</div>
-                <p>Choose a layout style (Tree, Root-left, Two-sided, Star), fit the canvas to show all nodes, zoom in and out, and search for specific nodes by title or notes.</p>
+                <div className="help-card-title">View</div>
+                <p>Layout selector (Tree, Root, Two-sided, Star), Fit to view, Zoom in/out, Search nodes, and Max depth control (2\u20135 levels).</p>
               </div>
               <div className="help-card">
                 <div className="help-card-icon"><Cpu size={16} /></div>
-                <div className="help-card-title">Options menu</div>
-                <p>Configure your AI provider: use Puter.ai (built-in) or connect a custom API key for Gemini or OpenAI models.</p>
+                <div className="help-card-title">Options</div>
+                <p>AI Provider toggle between Puter.ai (built-in, no key required) and Custom API (bring your own Gemini or OpenAI key). Model selection and API key input.</p>
               </div>
             </div>
           </section>
 
           <section>
-            <h3>Working with nodes</h3>
+            <h3>3. Layout types</h3>
+            <table className="help-table">
+              <thead><tr><th>Layout</th><th>Best for</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Tree \u2193</strong></td><td>WBS, org charts</td><td>Top-down hierarchy, root at top, children below. Classic breakdown structure.</td></tr>
+                <tr><td><strong>Root \u2192</strong></td><td>Outlines, roadmaps</td><td>Root on the left, branches extend rightward. Good for linear reading.</td></tr>
+                <tr><td><strong>2-Sided \u2194</strong></td><td>Mind maps, brainstorming</td><td>Root centered, children alternate left/right. Maximizes horizontal space.</td></tr>
+                <tr><td><strong>Star \u2606</strong></td><td>Radial, concept maps</td><td>Radial burst from center. Use for brainstorming around a core idea.</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section>
+            <h3>4. Working with nodes</h3>
             <ul>
-              <li><strong>Select</strong> — Click a node to select it and open the inspector panel on the right</li>
-              <li><strong>Multi-select</strong> — Hold <kbd>Shift</kbd> and drag to box-select multiple nodes</li>
-              <li><strong>Drag</strong> — Click and drag any node to move it. Multi-drag moves all selected nodes together</li>
-              <li><strong>Delete</strong> — Select a node and press <kbd>Delete</kbd> to remove it</li>
-              <li><strong>Isolate</strong> — Hover a node and click the focus icon to isolate its branch</li>
-              <li><strong>Collapse</strong> — Hover a node and click the collapse icon to hide its children</li>
-              <li><strong>Checklists</strong> — Open a node in the inspector to add checklists with progress tracking</li>
+              <li><strong>Click</strong> \u2014 Select a node and open the details drawer on the right. Edit its title, notes, and checklist.</li>
+              <li><strong>Drag</strong> \u2014 Click and drag any node to reposition it. The canvas auto-pans if you drag near the edges.</li>
+              <li><strong>Multi-select</strong> \u2014 Hold <kbd>Shift</kbd> and drag to draw a selection box around multiple nodes. Drag any selected node to move them all.</li>
+              <li><strong>Delete</strong> \u2014 Select a node (or multiple) and press <kbd>Delete</kbd> or <kbd>Backspace</kbd>. An Undo toast lets you revert.</li>
+              <li><strong>Isolate</strong> \u2014 Click the focus icon on a node toolbar to view only that branch. Click again to show the full tree.</li>
+              <li><strong>Collapse</strong> \u2014 Click the chevron on a parent node to hide its children. The collapse count shows how many nodes are hidden.</li>
+              <li><strong>Depth control</strong> \u2014 In View menu, set Max depth (2\u20135). Nodes beyond this depth auto-isolate their parent when expanded.</li>
             </ul>
           </section>
 
           <section>
-            <h3>AI interaction</h3>
+            <h3>5. Checklists / To-do items</h3>
+            <p>Each node supports a built-in checklist for tracking sub-tasks, requirements, or action items.</p>
             <ul>
-              <li><strong>Chat</strong> — Describe features, ask for changes, or request new branches in natural language</li>
-              <li><strong>Expand</strong> — Hover a node and click the expand icon to have the AI generate sub-nodes</li>
-              <li><strong>Elaborate</strong> — Open a node and click "Elaborate with AI" to enrich its description</li>
-              <li><strong>Confirm</strong> — AI actions that modify the tree show a confirmation dialog before applying</li>
-              <li><strong>Web research</strong> — The AI can perform live web searches when needed (indicated by @@SEARCH@@)</li>
+              <li><strong>Quick-add from node</strong> \u2014 Hover any node and click the checklist icon (checkbox) on the toolbar. Type an item and press Enter. Existing items appear inline with checkboxes you can toggle.</li>
+              <li><strong>Full editor in drawer</strong> \u2014 Open a node and scroll to the Checklist section. Add, check off, or remove items. A progress bar shows completion percentage.</li>
+              <li><strong>AI-generated checklists</strong> \u2014 Ask the AI for "a to-do list" or "next steps" and it will render checkable items in the chat response.</li>
             </ul>
           </section>
 
           <section>
-            <h3>Shortcuts</h3>
+            <h3>6. AI interaction guide</h3>
+            <table className="help-table">
+              <thead><tr><th>Action</th><th>How</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Chat</strong></td><td>Type in the left panel, press Enter</td><td>Describes your project, requests changes, asks for expansions. Uses the full system prompt with WBS/Agile/Waterfall/etc. methodologies.</td></tr>
+                <tr><td><strong>Expand node</strong></td><td>Hover a node \u2192 click sparkle icon</td><td>AI generates 3\u20135 sub-items for that node as concrete, actionable children.</td></tr>
+                <tr><td><strong>Elaborate</strong></td><td>Open a node \u2192 click "Elaborate with AI"</td><td>AI writes a detailed description with bullet points for the node's notes field.</td></tr>
+                <tr><td><strong>Confirm</strong></td><td>AI actions show a dialog before applying</td><td>Review what the AI wants to change (add/update/delete nodes) and Approve or Cancel.</td></tr>
+                <tr><td><strong>Web research</strong></td><td>AI requests it via @@SEARCH@@ marker</td><td>The app fetches DuckDuckGo results and re-runs the prompt with context. No API key needed.</td></tr>
+              </tbody>
+            </table>
+            <p><strong>Providers:</strong> Puter.ai works out of the box (no setup). For Custom API, enter a Gemini or OpenAI model name and API key in Options menu. The app never sends your key anywhere except directly to the provider.</p>
+            <p><strong>Language:</strong> The AI detects and replies in the same language you write in. System prompts include recent user messages as language hints.</p>
+          </section>
+
+          <section>
+            <h3>7. Keyboard shortcuts</h3>
             <div className="help-shortcuts-grid">
-              <div><kbd>Ctrl+Z</kbd> <span>Undo</span></div>
-              <div><kbd>Ctrl+Y</kbd> <span>Redo</span></div>
-              <div><kbd>Ctrl+S</kbd> <span>Save project</span></div>
-              <div><kbd>Ctrl+N</kbd> <span>New node / New project</span></div>
-              <div><kbd>Ctrl+A</kbd> <span>Select all visible nodes</span></div>
-              <div><kbd>Delete</kbd> <span>Remove selected nodes</span></div>
-              <div><kbd>Escape</kbd> <span>Close panel / Deselect</span></div>
+              <div><kbd>Ctrl+Z</kbd> <span>Undo last change</span></div>
+              <div><kbd>Ctrl+Y</kbd> <span>Redo undone change</span></div>
+              <div><kbd>Ctrl+Shift+Z</kbd> <span>Redo (alternative)</span></div>
+              <div><kbd>Delete</kbd> / <kbd>Backspace</kbd> <span>Remove selected node(s)</span></div>
+              <div><kbd>Escape</kbd> <span>Close drawer / deselect</span></div>
               <div><kbd>Shift</kbd>+drag <span>Box-select multiple nodes</span></div>
+              <div><kbd>Enter</kbd> (in chat) <span>Send message</span></div>
+              <div><kbd>Shift+Enter</kbd> (in chat) <span>New line in message</span></div>
+              <div>Scroll wheel <span>Zoom in/out on canvas</span></div>
             </div>
           </section>
 
           <section>
-            <h3>Export &amp; sharing</h3>
+            <h3>8. Documents &amp; sessions</h3>
             <ul>
-              <li><strong>JSON</strong> — Full project data (tree, nodes, positions, metadata)</li>
-              <li><strong>Markdown</strong> — Hierarchical outline formatted as Markdown</li>
-              <li><strong>PNG image</strong> — Canvas screenshot (renders at 2x resolution)</li>
-              <li><strong>.nexus bundle</strong> — Complete project bundle including tree, chat history, and attachments</li>
-              <li><strong>Import</strong> — Load a .json or .nexus file into the current workspace</li>
+              <li><strong>Documents</strong> \u2014 Multiple independent projects. Use File &gt; New document to create one, File &gt; [document name] to switch. Each is stored separately in localStorage.</li>
+              <li><strong>Sessions</strong> \u2014 Named snapshots of your current tree + chat. File &gt; Save session creates one; File &gt; Load session restores it. Useful for tracking weekly progress.</li>
+              <li><strong>Auto-save</strong> \u2014 The current document is persisted to localStorage every 30 seconds. Closing and reopening the app restores your last state.</li>
             </ul>
           </section>
 
           <section>
-            <h3>Canvas navigation</h3>
+            <h3>9. Canvas navigation</h3>
             <ul>
-              <li><strong>Pan</strong> — Click and drag on empty canvas space to pan the view</li>
-              <li><strong>Zoom</strong> — Scroll to zoom in and out, or use View &gt; Zoom controls</li>
-              <li><strong>Fit</strong> — Use View &gt; Fit to view to automatically frame all nodes</li>
+              <li><strong>Pan</strong> \u2014 Click and drag on empty canvas space. The cursor changes to a grab hand.</li>
+              <li><strong>Zoom</strong> \u2014 Scroll up/down to zoom in/out. The zoom centers on your cursor position. Current zoom level is shown at bottom-right.</li>
+              <li><strong>Fit to view</strong> \u2014 View &gt; Fit to view or click the title block at bottom-right. Automatically scales and centers all visible nodes.</li>
+              <li><strong>Hide sidebar</strong> \u2014 Click the arrow button at bottom-left to collapse/expand the AI chat panel.</li>
+              <li><strong>Resize panels</strong> \u2014 Drag the resize handles on the right edge of the sidebar or the left edge of the details drawer.</li>
             </ul>
+          </section>
+
+          <section>
+            <h3>10. Export formats</h3>
+            <table className="help-table">
+              <thead><tr><th>Format</th><th>Extension</th><th>What's included</th></tr></thead>
+              <tbody>
+                <tr><td>JSON</td><td><code>.json</code></td><td>Full tree structure with titles, descriptions, checklists. Portable data format.</td></tr>
+                <tr><td>Markdown</td><td><code>.md</code></td><td>Hierarchical outline (headings + bullet points). Great for docs.</td></tr>
+                <tr><td>PNG</td><td><code>.png</code></td><td>Canvas screenshot at 2x resolution. Ready for presentations.</td></tr>
+                <tr><td>.nexus bundle</td><td><code>.nexus</code></td><td>Tree + chat history + attachments in one file. Share with collaborators.</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section>
+            <h3>11. Troubleshooting</h3>
+            <table className="help-table">
+              <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+              <tbody>
+                <tr><td>AI not responding</td><td>Check your internet connection. If using Custom API, verify the API key and model name in Options &gt; Custom API.</td></tr>
+                <tr><td>"No AI available" error</td><td>For Puter.ai, ensure the site can load the Puter script (no ad blocker blocking it). For Custom, add an API key.</td></tr>
+                <tr><td>Canvas is empty or zoomed out</td><td>Use View &gt; Fit to view or click the project title at bottom-right. If still empty, check the sidebar is not hidden.</td></tr>
+                <tr><td>Data not loading on refresh</td><td>Check localStorage in browser DevTools &gt; Application &gt; Local Storage for <code>nexus_*</code> keys. If missing, import a backup.</td></tr>
+                <tr><td>Export image is blank</td><td>Some browsers block canvas-to-image rendering. Try a different browser (Chrome or Firefox recommended).</td></tr>
+                <tr><td>AI language doesn't match</td><td>The AI uses your last few messages as language hints. Write a message in your preferred language to reset it.</td></tr>
+              </tbody>
+            </table>
           </section>
         </div>
       </div>
