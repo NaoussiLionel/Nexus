@@ -22,6 +22,9 @@ export default function MindNode({ node }) {
 
   const hasChildren = node.children?.length > 0;
   const depthClass = node.depth === 0 ? 'depth-0' : node.depth === 1 ? 'depth-1' : 'leaf';
+  const checklist = node.checklist || [];
+  const checkedCount = checklist.filter(c => c.checked).length;
+  const hasChecklist = checklist.length > 0;
   const angle = node.depth >= 2 ? hashAngle(node.id) : 0;
   const codeLabel = node.depth === 0 ? 'CORE' : ('NO. ' + (node.code || ''));
   const kindLabel = node.depth === 0 ? 'PROJECT' : node.depth === 1 ? 'BRANCH' : 'ITEM';
@@ -139,6 +142,12 @@ export default function MindNode({ node }) {
       <div className="node-title">{node.title}</div>
       {node.description && (
         <p className="node-desc" dangerouslySetInnerHTML={{ __html: renderInline(truncate(node.description, descMax)) }} />
+      )}
+      {hasChecklist && (
+        <div className="node-checklist">
+          <span className="node-checklist-icon">{'\u2611'}</span>
+          <span className="node-checklist-text">{checkedCount}/{checklist.length}</span>
+        </div>
       )}
       {hasChildren && (
         <button className="collapse-toggle" aria-label={node.collapsed ? 'Expand branch' : 'Collapse branch'} onClick={handleToggleCollapse}>

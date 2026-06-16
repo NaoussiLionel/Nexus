@@ -1,5 +1,5 @@
-export function generateId() {
-  return 'n' + Math.random().toString(36).slice(2, 10);
+export function generateId(prefix) {
+  return (prefix || 'n') + Math.random().toString(36).slice(2, 10);
 }
 
 export function escapeHtml(str) {
@@ -27,16 +27,17 @@ export function sanitizeFilename(name) {
 }
 
 export function downloadFile(content, filename, mime) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
+  const isDataUrl = typeof content === 'string' && content.startsWith('data:');
+  const url = isDataUrl ? content : URL.createObjectURL(new Blob([content], { type: mime }));
   const a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 150);
+  setTimeout(() => { if (!isDataUrl) URL.revokeObjectURL(url); a.remove(); }, 150);
 }
 
-export function renderInline(text) {
+export function renderInline(text, msgIdx, checkboxes) {
   let safe = escapeHtml(text);
+  let cbIdx = 0;
   safe = safe.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
     if (/^(javascript|data|vbscript):/i.test(url)) url = '#';
     return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
@@ -44,6 +45,11 @@ export function renderInline(text) {
   safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   safe = safe.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
   safe = safe.replace(/`([^`]+)`/g, '<code style="background:var(--bp-600);padding:1px 4px;border-radius:3px;font-size:.82em">$1</code>');
+  safe = safe.replace(/^- (\[.\]) (.+)/gm, (_, box, label) => {
+    const idx = cbIdx++;
+    const checked = checkboxes?.[idx] ?? (box === '[x]');
+    return '<label class="chat-checkbox"><input type="checkbox" data-msg="' + msgIdx + '" data-idx="' + idx + '"' + (checked ? ' checked' : '') + '><span>' + label + '</span></label>';
+  });
   safe = safe.replace(/^- (.+)/gm, '<span style="display:block;padding-left:12px;position:relative">&bull; $1</span>');
   safe = safe.replace(/\n/g, '<br>');
   return safe;

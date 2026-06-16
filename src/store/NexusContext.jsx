@@ -27,6 +27,7 @@ export function NexusProvider({ children }) {
   const [selectedId, setSelectedId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [history, setHistory] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
   const [busy, setBusy] = useState(false);
   const [recentlyAddedIds, setRecentlyAddedIds] = useState(new Set());
   const [lastSaved, setLastSaved] = useState(null);
@@ -45,6 +46,18 @@ export function NexusProvider({ children }) {
     try { return localStorage.getItem('nexus_custom_model') || 'gemini-2.5-flash'; } catch { return 'gemini-2.5-flash'; }
   });
   const [resetArmed, setResetArmed] = useState(false);
+  const [documents, setDocuments] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('nexus_docs_meta') || '[]'); } catch { return []; }
+  });
+  const [activeDocId, setActiveDocId] = useState(() => {
+    try { return localStorage.getItem('nexus_active_doc') || null; } catch { return null; }
+  });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try { return parseInt(localStorage.getItem('nexus_sidebar_width') || '380', 10); } catch { return 380; }
+  });
+  const [drawerWidth, setDrawerWidth] = useState(() => {
+    try { return parseInt(localStorage.getItem('nexus_drawer_width') || '340', 10); } catch { return 340; }
+  });
 
   const saveTimer = useRef(null);
   useEffect(() => {
@@ -56,6 +69,12 @@ export function NexusProvider({ children }) {
   useEffect(() => {
     try { localStorage.setItem('nexus_custom_model', customModel); } catch { /* ignore */ }
   }, [customModel]);
+  useEffect(() => {
+    try { localStorage.setItem('nexus_sidebar_width', String(sidebarWidth)); } catch { /* ignore */ }
+  }, [sidebarWidth]);
+  useEffect(() => {
+    try { localStorage.setItem('nexus_drawer_width', String(drawerWidth)); } catch { /* ignore */ }
+  }, [drawerWidth]);
 
   const setTree = useCallback((t) => {
     setTreeRaw(t);
@@ -81,14 +100,17 @@ export function NexusProvider({ children }) {
       if (next.length > 20) next.shift();
       return next;
     });
+    setRedoStack([]);
   }, [tree]);
 
   const undo = useCallback(() => {
+    if (!tree) return;
     setHistory(prev => {
       if (!prev.length) return prev;
       const nh = [...prev];
       try {
         const snapshot = JSON.parse(nh.pop());
+        setRedoStack(r => [...r, JSON.stringify(tree)]);
         setTree(snapshot);
         setIsolatedId(null);
         setSelectedId(null);
@@ -98,7 +120,26 @@ export function NexusProvider({ children }) {
         return nh;
       }
     });
-  }, [setTree, addToast]);
+  }, [setTree, addToast, tree]);
+
+  const redo = useCallback(() => {
+    if (!tree) return;
+    setRedoStack(prev => {
+      if (!prev.length) return prev;
+      const nr = [...prev];
+      try {
+        const snapshot = JSON.parse(nr.pop());
+        setHistory(h => [...h, JSON.stringify(tree)]);
+        setTree(snapshot);
+        setIsolatedId(null);
+        setSelectedId(null);
+        return nr;
+      } catch {
+        addToast('Could not redo — history entry was corrupted.', 'error');
+        return nr;
+      }
+    });
+  }, [setTree, addToast, tree]);
 
   const SAVE_LOCAL_KEY = 'nexus_architect_data';
 
@@ -111,6 +152,9 @@ export function NexusProvider({ children }) {
       try {
         localStorage.setItem(SAVE_LOCAL_KEY, payload);
       } catch { /* localStorage full */ }
+      if (activeDocId && tree) {
+        try { localStorage.setItem('nexus_doc_' + activeDocId, payload); } catch { /* ignore */ }
+      }
       try {
         if (window.puter?.storage) {
           await window.puter.storage.set(STORAGE_KEY, payload);
@@ -118,23 +162,74 @@ export function NexusProvider({ children }) {
       } catch { /* puter unavailable */ }
       setLastSaved(Date.now());
     }, 500);
-  }, [tree, chat, model, layout, geminiKey, provider, customModel]);
+  }, [tree, chat, model, layout, geminiKey, provider, customModel, activeDocId]);
 
   const loadFromStorage = useCallback(async () => {
-    let raw = null;
-    try {
-      raw = localStorage.getItem(SAVE_LOCAL_KEY);
-    } catch { /* ignore */ }
-    if (!raw) {
-      try {
-        if (window.puter?.storage) {
-          const res = await window.puter.storage.get(STORAGE_KEY);
-          if (res?.value) raw = res.value;
-        }
-      } catch { /* ignore */ }
+    let docs = [];
+    try { docs = JSON.parse(localStorage.getItem('nexus_docs_meta') || '[]'); } catch { /* ignore */ }
+    let activeDoc = null;
+    try { activeDoc = localStorage.getItem('nexus_active_doc'); } catch { /* ignore */ }
+
+    if (!docs.length) {
+      let raw = null;
+      try { raw = localStorage.getItem(SAVE_LOCAL_KEY); } catch { /* ignore */ }
+      if (!raw) {
+        try {
+          if (window.puter?.storage) {
+            const res = await window.puter.storage.get(STORAGE_KEY);
+            if (res?.value) raw = res.value;
+          }
+        } catch { /* ignore */ }
+      }
+      if (raw) {
+        try {
+          const data = JSON.parse(raw);
+          if (data.tree) {
+            const id = generateId('doc');
+            const now = Date.now();
+            docs = [{ id, name: data.tree?.title || 'My Project', createdAt: now, updatedAt: now }];
+            activeDoc = id;
+            try { localStorage.setItem('nexus_doc_' + id, raw); } catch { /* ignore */ }
+            try { localStorage.setItem('nexus_docs_meta', JSON.stringify(docs)); } catch { /* ignore */ }
+            try { localStorage.setItem('nexus_active_doc', id); } catch { /* ignore */ }
+            setDocuments(docs);
+            setActiveDocId(id);
+            if (data.tree) setTree(data.tree);
+            if (Array.isArray(data.chat)) setChat(data.chat);
+            if (data.model && MODELS.some(m => m.id === data.model)) setModel(data.model);
+            if (data.layout && LAYOUTS.some(l => l.id === data.layout)) setLayout(data.layout);
+            if (data.geminiKey && !geminiKey) {
+              try { localStorage.setItem('nexus_gemini_key', data.geminiKey); setGeminiKey(data.geminiKey); } catch { /* ignore */ }
+            }
+            if (data.provider) setProvider(data.provider);
+            if (data.customModel) setCustomModel(data.customModel);
+            setLastSaved(data.savedAt || null);
+            return;
+          }
+        } catch { /* ignore */ }
+      }
+      const id = generateId('doc');
+      const now = Date.now();
+      docs = [{ id, name: 'My Project', createdAt: now, updatedAt: now }];
+      activeDoc = id;
+      try { localStorage.setItem('nexus_docs_meta', JSON.stringify(docs)); } catch { /* ignore */ }
+      try { localStorage.setItem('nexus_active_doc', id); } catch { /* ignore */ }
+      setDocuments(docs);
+      setActiveDocId(id);
+      return;
     }
-    if (raw) {
-      try {
+
+    setDocuments(docs);
+    if (activeDoc && docs.some(d => d.id === activeDoc)) {
+      setActiveDocId(activeDoc);
+    } else {
+      activeDoc = docs[0].id;
+      setActiveDocId(activeDoc);
+      try { localStorage.setItem('nexus_active_doc', activeDoc); } catch { /* ignore */ }
+    }
+    try {
+      const raw = localStorage.getItem('nexus_doc_' + activeDoc);
+      if (raw) {
         const data = JSON.parse(raw);
         if (data.tree) setTree(data.tree);
         if (Array.isArray(data.chat)) setChat(data.chat);
@@ -146,9 +241,9 @@ export function NexusProvider({ children }) {
         if (data.provider) setProvider(data.provider);
         if (data.customModel) setCustomModel(data.customModel);
         setLastSaved(data.savedAt || null);
-      } catch { /* ignore */ }
-    }
-  }, [setTree, geminiKey, setGeminiKey]);
+      }
+    } catch { /* ignore */ }
+  }, [setTree, geminiKey, setGeminiKey, setDocuments, setActiveDocId]);
 
   const resetProject = useCallback(async () => {
     setTreeRaw(null);
@@ -156,7 +251,9 @@ export function NexusProvider({ children }) {
     setChat([]);
     setIsolatedId(null);
     setSelectedId(null);
+    setSelectedIds(new Set());
     setHistory([]);
+    setRedoStack([]);
     setLastSaved(null);
     setDrawerNodeId(null);
     try { localStorage.removeItem('nexus_architect_data'); } catch { /* ignore */ }
@@ -236,6 +333,92 @@ export function NexusProvider({ children }) {
     });
   }, [tree, isolatedId, setCanvas]);
 
+  const saveDocMeta = useCallback((docs) => {
+    setDocuments(docs);
+    try { localStorage.setItem('nexus_docs_meta', JSON.stringify(docs)); } catch { /* ignore */ }
+  }, []);
+
+  const persistDoc = useCallback(() => {
+    if (!activeDocId || !tree) return;
+    const payload = JSON.stringify({
+      tree, chat: chat.slice(-24), model, layout, geminiKey, provider, customModel, savedAt: Date.now()
+    });
+    try { localStorage.setItem('nexus_doc_' + activeDocId, payload); } catch { /* localStorage full */ }
+    try {
+      if (window.puter?.storage) {
+        window.puter.storage.set('nexus_doc_' + activeDocId, payload);
+      }
+    } catch { /* ignore */ }
+  }, [activeDocId, tree, chat, model, layout, geminiKey, provider, customModel]);
+
+  const switchDocument = useCallback((docId) => {
+    if (docId === activeDocId) return;
+    persistDoc();
+    try {
+      const raw = localStorage.getItem('nexus_doc_' + docId);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.tree) setTree(data.tree);
+        if (Array.isArray(data.chat)) setChat(data.chat);
+        if (data.model && MODELS.some(m => m.id === data.model)) setModel(data.model);
+        if (data.layout && LAYOUTS.some(l => l.id === data.layout)) setLayout(data.layout);
+        if (data.geminiKey) setGeminiKey(data.geminiKey);
+        if (data.provider) setProvider(data.provider);
+        if (data.customModel) setCustomModel(data.customModel);
+        setActiveDocId(docId);
+        try { localStorage.setItem('nexus_active_doc', docId); } catch { /* ignore */ }
+        setTimeout(fitView, 80);
+      } else {
+        addToast('Document data not found.', 'error');
+      }
+    } catch { addToast('Could not load document.', 'error'); }
+  }, [activeDocId, persistDoc, setTree, setChat, setModel, setLayout, setGeminiKey, setProvider, setCustomModel, addToast, fitView]);
+
+  const createDocument = useCallback((name) => {
+    const id = generateId('doc');
+    const now = Date.now();
+    const entry = { id, name: name || 'Untitled', createdAt: now, updatedAt: now };
+    saveDocMeta([entry, ...documents]);
+    persistDoc();
+    setActiveDocId(id);
+    try { localStorage.setItem('nexus_active_doc', id); } catch { /* ignore */ }
+    setTree(null);
+    setChat([]);
+    setHistory([]);
+    setRedoStack([]);
+    setIsolatedId(null);
+    setSelectedId(null);
+    setSelectedIds(new Set());
+    setDrawerNodeId(null);
+    addToast('Created "' + entry.name + '"');
+  }, [documents, saveDocMeta, persistDoc, addToast, setTree, setChat, setHistory, setRedoStack, setIsolatedId, setSelectedId, setSelectedIds, setDrawerNodeId]);
+
+  const deleteDocument = useCallback((docId) => {
+    if (documents.length <= 1) { addToast('Cannot delete the only document.', 'error'); return; }
+    try { localStorage.removeItem('nexus_doc_' + docId); } catch { /* ignore */ }
+    const rest = documents.filter(d => d.id !== docId);
+    saveDocMeta(rest);
+    if (docId === activeDocId) {
+      const next = rest[0];
+      setActiveDocId(next.id);
+      try { localStorage.setItem('nexus_active_doc', next.id); } catch { /* ignore */ }
+      try {
+        const raw = localStorage.getItem('nexus_doc_' + next.id);
+        if (raw) {
+          const data = JSON.parse(raw);
+          if (data.tree) setTree(data.tree);
+          if (Array.isArray(data.chat)) setChat(data.chat);
+          if (data.model) setModel(data.model);
+        }
+      } catch { /* ignore */ }
+      setTimeout(fitView, 80);
+    }
+  }, [documents, activeDocId, saveDocMeta, setTree, setChat, setModel, addToast, fitView]);
+
+  const renameDocument = useCallback((docId, name) => {
+    saveDocMeta(documents.map(d => d.id === docId ? { ...d, name, updatedAt: Date.now() } : d));
+  }, [documents, saveDocMeta]);
+
   const confirmPendingActionsCB = useCallback(() => {
     setPendingActions(prev => {
       if (!prev) return prev;
@@ -274,6 +457,7 @@ export function NexusProvider({ children }) {
     chat, setChat, model, setModel,
     canvas, setCanvas, isolatedId, setIsolatedId,
     selectedId, setSelectedId, selectedIds, setSelectedIds, history, setHistory,
+    redoStack, setRedoStack,
     busy, setBusy, recentlyAddedIds, setRecentlyAddedIds,
     lastSaved, setLastSaved, toasts,
     drawerNodeId, setDrawerNodeId,
@@ -285,19 +469,23 @@ export function NexusProvider({ children }) {
     geminiKey, setGeminiKey,
     provider, setProvider, customModel, setCustomModel,
     resetArmed, setResetArmed,
-    pushHistory, undo, persist, loadFromStorage, resetProject,
+    documents, activeDocId, sidebarWidth, setSidebarWidth, drawerWidth, setDrawerWidth,
+    pushHistory, undo, redo, persist, loadFromStorage, resetProject,
     addToast, removeToast,
     openDrawer, closeDrawer,
     setScale, zoomIn, zoomOut, fitView,
+    persistDoc, switchDocument, createDocument, deleteDocument, renameDocument,
   }), [tree, nodeMap, chat, model, canvas, isolatedId, selectedId, selectedIds, history,
-      busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, layout, searchQuery, pendingActions,
-      geminiKey, provider, customModel, resetArmed,
+      redoStack, busy, recentlyAddedIds, lastSaved, toasts, drawerNodeId, layout, searchQuery,
+      pendingActions, geminiKey, provider, customModel, resetArmed,
+      documents, activeDocId, sidebarWidth, drawerWidth,
       confirmPendingActionsCB, cancelPendingActionsCB,
       setTree, setNodeMap, setChat, setModel, setCanvas, setIsolatedId,
       setSelectedId, setSelectedIds, setHistory, setBusy, setRecentlyAddedIds, setLastSaved,
       setDrawerNodeId, setResetArmed, pushHistory, persist, loadFromStorage,
       resetProject, addToast, removeToast, openDrawer, closeDrawer,
-      setScale, zoomIn, zoomOut, fitView, undo]);
+      setScale, zoomIn, zoomOut, fitView, undo, redo,
+      persistDoc, switchDocument, createDocument, deleteDocument, renameDocument]);
 
   return <NexusContext.Provider value={ctx}>{children}</NexusContext.Provider>;
 }

@@ -15,7 +15,7 @@ export default function Canvas() {
   const {
     tree, setTree, isolatedId, setIsolatedId, setSelectedId,
     selectedIds, setSelectedIds,
-    pushHistory, persist, addToast, undo,
+    pushHistory, persist, addToast, undo, redo,
     canvas, openDrawer, closeDrawer, lastSaved, fitView, setScale, layout,
     searchQuery, setSearchQuery, drawerNodeId, selectedId,
   } = useNexus();
@@ -117,8 +117,9 @@ export default function Canvas() {
       return;
     }
     setSelectedIds(new Set());
+    closeDrawer();
     canvasPointerDown(e);
-  }, [canvasPointerDown, setSelectedId, selectedIds, setSelectedIds]);
+  }, [canvasPointerDown, setSelectedId, selectedIds, setSelectedIds, closeDrawer]);
 
   const handlePointerMove = useCallback((e) => {
     const cur = dragCtx.current;
@@ -256,7 +257,8 @@ export default function Canvas() {
 
       if ((e.ctrlKey || e.metaKey) && !isInput) {
         switch (e.key) {
-          case 'z': e.preventDefault(); if (undo) undo(); break;
+          case 'z': e.preventDefault(); if (e.shiftKey) { if (redo) redo(); } else { if (undo) undo(); } break;
+          case 'y': e.preventDefault(); if (redo) redo(); break;
           case 's': e.preventDefault(); persist(); addToast('Saved'); break;
           case 'n':
             e.preventDefault();
@@ -297,7 +299,7 @@ export default function Canvas() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedIds, selectedId, drawerNodeId, searchQuery, pushHistory, setTree, persist, addToast, undo, setSelectedId, setSelectedIds, closeDrawer, setSearchQuery, openDrawer, fitView, layout, visibleIds]);
+  }, [selectedIds, selectedId, drawerNodeId, searchQuery, pushHistory, setTree, persist, addToast, undo, redo, setSelectedId, setSelectedIds, closeDrawer, setSearchQuery, openDrawer, fitView, layout, visibleIds]);
 
   const handleStartEmpty = useCallback(() => {
     const t = makeNode('New project', 'Describe this project, or ask the AI Architect to fill it in.', 0);
@@ -374,7 +376,7 @@ export default function Canvas() {
 
       {tree && (
         <div className="shortcuts-hint" aria-hidden="true">
-          <kbd>Ctrl+Z</kbd> undo &middot; <kbd>Shift</kbd>+drag select &middot; <kbd>Del</kbd> remove
+          <kbd>Ctrl+Z</kbd> undo &middot; <kbd>Ctrl+Y</kbd> redo &middot; <kbd>Shift</kbd>+drag select &middot; <kbd>Del</kbd> remove
         </div>
       )}
 

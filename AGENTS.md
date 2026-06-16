@@ -15,15 +15,15 @@ AI-powered visual mind-mapping canvas for project planning. React 19 + Vite 8. D
 src/
   App.jsx                  — root layout (Header, main: Canvas+Sidebar+Drawer, ConfirmDialog, Toast)
   main.jsx                 — entry point, StrictMode + NexusProvider
-  index.css                — all styles (~470 lines, single file)
+  index.css                — all styles (~740 lines, single file)
   store/
-    NexusContext.jsx       — global state (tree, chat, model, canvas, layout, etc.)
+    NexusContext.jsx       — global state (~485 lines)
   components/
-    Header.jsx             — toolbar (undo, arrange, fit, zoom, export, import, layout select, search)
-    Canvas.jsx             — SVG connectors + node layer + pan/zoom + box-select + empty state
-    Sidebar.jsx            — AI chat panel (messages, suggestions, input, hide toggle)
-    DetailsDrawer.jsx      — node editor (title, notes, AI elaborate, save, slides from left)
-    MindNode.jsx           — single node (toolbar, collapse, isolate, delete, drag, multi-select, search match)
+    Header.jsx             — grouped toolbar (Edit, View, Search, Export dropdown, Help ?, Hamburger ☰), doc switcher, overlay panels (Docs/History/Sessions/Files/Settings tabs), Sessions CRUD, Attachments manager, Settings (AI provider, API key, reset)
+    Canvas.jsx             — SVG connectors + node layer + pan/zoom + box-select + empty state + undo/redo shortcuts + close drawer on empty click
+    Sidebar.jsx            — AI chat only (messages, suggestions, input, model select, hide toggle, resize handle)
+    DetailsDrawer.jsx      — node editor (title, notes, checklists, AI elaborate, save, resize handle)
+    MindNode.jsx           — single node (toolbar, collapse, isolate, delete, drag, multi-select, search match, checklist indicator)
     Connectors.jsx         — SVG connector paths with depth-based styling
     Toast.jsx              — toast notification container
     ConfirmDialog.jsx      — AI action confirmation modal (Apply/Cancel)
@@ -33,9 +33,9 @@ src/
     useGemini.js           — Google Gemini API (fetch, streaming, native fetch bypass)
     useOpenAI.js           — OpenAI API (fetch, streaming SSE, native fetch bypass)
   utils/
-    tree.js                — tree manipulation (makeNode, findNode, layout, applyActions, etc.)
+    tree.js                — tree manipulation (makeNode, findNode, layout, applyActions, normalizeTree, stripForExport, etc.)
     constants.js           — models, suggestions, layout types, gaps, MAX_VISIBLE_DEPTH
-    helpers.js             — generateId, nodeWidth, nodeHeight, escapeHtml, etc.
+    helpers.js             — generateId(prefix), nodeWidth, nodeHeight, escapeHtml, renderInline, sanitizeFilename, downloadFile
 ```
 
 ## State Management (NexusContext)
@@ -54,6 +54,9 @@ Key state:
 - `pendingActions` — `{ actions, reply, layout }` awaiting user confirmation
 - `provider` — `'puter' | 'custom'` (persisted to localStorage)
 - `customModel` — model name string (e.g. `'gemini-2.5-flash'`) for custom provider
+- `history` / `redoStack` — undo/redo snapshots arrays
+- `documents` / `activeDocId` — multi-document support (per-doc localStorage)
+- `sidebarWidth` / `drawerWidth` — resizable panel widths (persisted)
 
 ## Tree Data Structure
 ```js
@@ -64,8 +67,8 @@ Key state:
   depth: 0,            // 0=root, 1=branch, 2+=leaf
   collapsed: false,
   x: 200, y: 150,     // position (center-top of node)
+  checklist: [],       // [{id, text, checked}] — optional checklists
   children: [ ... ]
-}
 ```
 
 ## Layout Algorithms (tree.js)
@@ -77,7 +80,7 @@ Key state:
 - `positionNewNodes(parent)` — places new children near parent without moving existing nodes (used by AI to preserve manual positions)
 
 ## AI Integration
-- **Provider toggle**: Sidebar settings has Puter.ai / Custom API toggle (`provider` state in NexusContext, persisted to localStorage)
+- **Provider toggle**: Header hamburger menu > Settings tab has Puter.ai / Custom API toggle (`provider` state in NexusContext, persisted to localStorage)
 - When `provider === 'puter'`: uses `puter.ai.chat(messages, {model, stream: true})` (existing models dropdown in sidebar header)
 - When `provider === 'custom'`: completely bypasses puter — uses custom model name + API key directly, routes by model prefix:
   - `gemini-*` → `useGemini.js` (Google Gemini API via `window.__nativeFetch`)
@@ -109,7 +112,7 @@ Key state:
 - `fitView()` recomputes scale/offset to show all nodes
 
 ## CSS Conventions
-- Single `index.css` file (~550 lines), no CSS modules
+- Single `index.css` file (~740 lines), no CSS modules
 - CSS custom properties for theme (--bp-*, --ink*, --brass*, --paper*)
 - BEM-like naming: `.details-drawer`, `.drawer-header`, `.chat-messages`
 - No Tailwind, no CSS-in-JS
@@ -120,6 +123,15 @@ Key state:
 - `.toast-dismiss` for toast close button
 - `.shortcuts-hint` for keyboard shortcut badge in canvas
 - `.provider-toggle` for AI provider toggle buttons
+- `.toolbar-group` — groups of toolbar buttons with divider
+- `.header-dropdown` / `.export-dropdown` — export and overlay dropdowns
+- `.header-overlay-panel` — shared overlay for help and hamburger menu panels
+- `.help-panel` / `.help-content` / `.help-shortcuts` — keyboard shortcuts display
+- `.menu-panel` / `.menu-tabs` / `.menu-content` — hamburger menu with tabbed panels
+- `.drawer-checklist` / `.checklist-*` / `.node-checklist` — checklist UI
+- `.sidebar-resize-handle` / `.drawer-resize-handle` — resizable panel handles
+- `.doc-switcher` / `.doc-dropdown` — document switcher dropdown
+- `.export-group` — export button wrapper for dropdown positioning
 
 ## Connectors
 - SVG paths in Connectors.jsx
@@ -164,6 +176,7 @@ npm run preview   # Preview production build
 
 ## Persistence
 - Always saves to `localStorage` under `nexus_architect_data` key (no Puter dependency for basic saves)
+- Multi-document support: each doc stored as `nexus_doc_<id>`, list in `nexus_docs_meta`, active tracked in `nexus_active_doc`
 - Falls back to Puter storage when available (used as secondary/cloud layer)
 - `loadFromStorage` reads localStorage first, then Puter
 - `resetProject` clears both localStorage and Puter storage
@@ -177,7 +190,7 @@ npm run preview   # Preview production build
 
 ## Lazy Loading (Performance)
 - `Sidebar`, `DetailsDrawer`, `ToastContainer`, `ConfirmDialog` are code-split with `React.lazy` + `Suspense`
-- Each renders as a separate chunk (9.4KB Sidebar, 2.45KB DetailsDrawer, 1.67KB ConfirmDialog, 0.82KB Toast)
+- Each renders as a separate chunk (6.7KB Sidebar, 2.45KB DetailsDrawer, 1.67KB ConfirmDialog, 0.82KB Toast)
 - Critical-path load: Header + Canvas + ErrorBoundary (~226KB initial)
 
 ## Pending / In Progress

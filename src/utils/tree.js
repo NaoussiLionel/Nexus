@@ -1,23 +1,26 @@
 import { generateId, nodeWidth, nodeHeight, truncate } from './helpers';
 import { H_GAP, ROW_GAP, MAX_VISIBLE_DEPTH } from './constants';
 
-export function makeNode(title, description, depth) {
+export function makeNode(title, description, depth, checklist) {
   return {
     id: generateId(),
     title: (title || '').trim() || (depth === 0 ? 'New project' : 'New idea'),
     description: (description || '').trim(),
-    depth, collapsed: false, x: null, y: null, children: []
+    depth, collapsed: false, x: null, y: null, children: [],
+    checklist: Array.isArray(checklist) ? checklist : []
   };
 }
 
 export function normalizeTree(raw, depth = 0) {
   const children = Array.isArray(raw?.children) ? raw.children : [];
+  const rawChecklist = Array.isArray(raw?.checklist) ? raw.checklist.slice(0, 20) : [];
   return {
     id: generateId(),
     title: (raw?.title ? String(raw.title) : (depth === 0 ? 'Untitled project' : 'Untitled')).trim() || 'Untitled',
     description: (raw?.description ? String(raw.description) : '').trim(),
     depth, collapsed: false, x: null, y: null,
-    children: children.slice(0, 8).map(c => normalizeTree(c, depth + 1))
+    children: children.slice(0, 8).map(c => normalizeTree(c, depth + 1)),
+    checklist: rawChecklist.map(c => ({ id: c.id || generateId(), text: String(c.text || ''), checked: !!c.checked }))
   };
 }
 
@@ -227,7 +230,8 @@ export function stripForExport(node) {
   return {
     title: node.title,
     description: node.description,
-    children: (node.children || []).map(stripForExport)
+    children: (node.children || []).map(stripForExport),
+    checklist: (node.checklist || []).map(c => ({ id: c.id, text: c.text, checked: c.checked }))
   };
 }
 
