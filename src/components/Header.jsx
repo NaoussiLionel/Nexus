@@ -87,6 +87,7 @@ export default function Header() {
   const searchRef = useRef(null);
   const has = !!tree;
 
+  const [helpOpen, setHelpOpen] = useState(false);
   const [sessions, setSessions] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nexus_sessions') || '[]'); } catch { return []; }
   });
@@ -102,14 +103,16 @@ export default function Header() {
     document.title = tree ? `${tree.title} \u2014 Nexus Architect` : 'Nexus Architect \u2014 AI Project Planning Canvas';
   }, [tree]);
 
-  const handleArrange = useCallback(() => {
+  const handleArrange = useCallback((layoutType) => {
     if (!tree) return;
     pushHistory();
-    recomputeLayout(tree, layout);
+    const useLayout = layoutType || layout;
+    if (layoutType) setLayout(layoutType);
+    recomputeLayout(tree, useLayout);
     setTree({ ...tree });
     persist();
     addToast('Auto-arranged the layout');
-  }, [tree, layout, pushHistory, setTree, persist, addToast]);
+  }, [tree, layout, pushHistory, setTree, persist, addToast, setLayout]);
 
   const handleExportJSON = useCallback(() => {
     if (!tree) return;
@@ -280,10 +283,8 @@ export default function Header() {
               <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)', textTransform:'uppercase', letterSpacing:'.08em' }}>Layout</span>
             </div>
             {LAYOUTS.map(l => (
-              <MenuItem key={l.id} label={l.label} right={layout === l.id ? '\u2713' : undefined} onClick={() => setLayout(l.id)} />
+              <MenuItem key={l.id} label={l.label} right={layout === l.id ? '\u2713' : undefined} onClick={() => handleArrange(l.id)} />
             ))}
-            <MenuDivider />
-            <MenuItem icon={<LayoutGrid size={13} />} label="Auto-arrange" disabled={!has} onClick={handleArrange} />
             <MenuItem icon={<Maximize size={13} />} label="Fit to view" disabled={!has} onClick={fitView} />
             <MenuDivider />
             <MenuItem icon={<ZoomIn size={13} />} label="Zoom in" onClick={zoomIn} right={Math.round(canvas.scale * 100) + '%'} />
@@ -336,30 +337,9 @@ export default function Header() {
             {geminiKey && <MenuItem label="Clear saved key" onClick={() => { setGeminiKey(''); setKeyInput(''); }} />}
           </MenuDropdown>
 
-          <MenuDropdown label="Help" icon={<HelpCircle size={14} />}>
-            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
-              <span className="mbi-label" style={{ fontWeight:600, fontSize:'.75rem', color:'var(--ink)' }}>Keyboard shortcuts</span>
-            </div>
-            <MenuItem label="Undo" right="Ctrl+Z" />
-            <MenuItem label="Redo" right="Ctrl+Y" />
-            <MenuItem label="Save project" right="Ctrl+S" />
-            <MenuItem label="New node / New project" right="Ctrl+N" />
-            <MenuItem label="Select all nodes" right="Ctrl+A" />
-            <MenuItem label="Delete selected" right="Delete" />
-            <MenuItem label="Close panel / Deselect" right="Escape" />
-            <MenuItem label="Box-select" right="Shift+drag" />
-            <MenuDivider />
-            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
-              <span className="mbi-label" style={{ fontWeight:600, fontSize:'.75rem', color:'var(--ink)' }}>Getting started</span>
-            </div>
-            <div style={{ padding:'4px 12px 8px', fontSize:'.72rem', color:'var(--ink-dim)', lineHeight:1.5 }}>
-              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Describe your project in the AI chat panel</p>
-              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Click a node to edit its title and notes</p>
-              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Drag nodes to reposition them</p>
-              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Use <strong>File &gt; Export</strong> to save your work</p>
-              <p style={{ margin:'0' }}>{'\u2022'} Create multiple documents via <strong>File</strong></p>
-            </div>
-          </MenuDropdown>
+          <button className="menu-bar-btn help-trigger" onClick={() => setHelpOpen(true)} aria-label="Open help and usage guide">
+            <HelpCircle size={14} /><span>Help</span>
+          </button>
         </nav>
       </div>
 
@@ -379,6 +359,137 @@ export default function Header() {
           <MessageSquare size={17} />
         </button>
       </div>
+
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
     </header>
+  );
+}
+
+function HelpModal({ onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const prev = document.activeElement;
+    const focusable = el.querySelectorAll('button, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length) focusable[0].focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Tab') {
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); prev?.focus(); };
+  }, [onClose]);
+
+  return (
+    <div className="help-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="dialog" aria-modal="true" aria-label="Help and usage guide">
+      <div className="help-modal" ref={ref}>
+        <div className="help-modal-header">
+          <h2>Nexus Architect Guide</h2>
+          <button className="icon-btn" aria-label="Close help" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="help-modal-body">
+          <section>
+            <h3>Getting started</h3>
+            <p>Nexus Architect turns project ideas into structured mind maps with AI. Describe what you want to build in the chat panel, and the AI will generate a hierarchical plan you can refine interactively.</p>
+            <ul>
+              <li>Type a project idea in the AI chat on the left panel and press <kbd>Enter</kbd></li>
+              <li>The AI will suggest a tree structure with nodes you can expand, edit, and reorganize</li>
+              <li>Click any node to open the inspector on the right and edit details</li>
+              <li>Drag nodes to rearrange them freely on the canvas</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Interface overview</h3>
+            <div className="help-grid">
+              <div className="help-card">
+                <div className="help-card-icon"><FileText size={16} /></div>
+                <div className="help-card-title">File menu</div>
+                <p>Create and switch between documents, export your project (JSON, Markdown, PNG, .nexus bundle), import existing projects, save and load sessions, and clear the current project.</p>
+              </div>
+              <div className="help-card">
+                <div className="help-card-icon"><Settings size={16} /></div>
+                <div className="help-card-title">Edit menu</div>
+                <p>Undo and redo changes. Access preferences to set your Gemini API key for AI features.</p>
+              </div>
+              <div className="help-card">
+                <div className="help-card-icon"><LayoutGrid size={16} /></div>
+                <div className="help-card-title">View menu</div>
+                <p>Choose a layout style (Tree, Root-left, Two-sided, Star), fit the canvas to show all nodes, zoom in and out, and search for specific nodes by title or notes.</p>
+              </div>
+              <div className="help-card">
+                <div className="help-card-icon"><Cpu size={16} /></div>
+                <div className="help-card-title">Options menu</div>
+                <p>Configure your AI provider: use Puter.ai (built-in) or connect a custom API key for Gemini or OpenAI models.</p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3>Working with nodes</h3>
+            <ul>
+              <li><strong>Select</strong> — Click a node to select it and open the inspector panel on the right</li>
+              <li><strong>Multi-select</strong> — Hold <kbd>Shift</kbd> and drag to box-select multiple nodes</li>
+              <li><strong>Drag</strong> — Click and drag any node to move it. Multi-drag moves all selected nodes together</li>
+              <li><strong>Delete</strong> — Select a node and press <kbd>Delete</kbd> to remove it</li>
+              <li><strong>Isolate</strong> — Hover a node and click the focus icon to isolate its branch</li>
+              <li><strong>Collapse</strong> — Hover a node and click the collapse icon to hide its children</li>
+              <li><strong>Checklists</strong> — Open a node in the inspector to add checklists with progress tracking</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>AI interaction</h3>
+            <ul>
+              <li><strong>Chat</strong> — Describe features, ask for changes, or request new branches in natural language</li>
+              <li><strong>Expand</strong> — Hover a node and click the expand icon to have the AI generate sub-nodes</li>
+              <li><strong>Elaborate</strong> — Open a node and click "Elaborate with AI" to enrich its description</li>
+              <li><strong>Confirm</strong> — AI actions that modify the tree show a confirmation dialog before applying</li>
+              <li><strong>Web research</strong> — The AI can perform live web searches when needed (indicated by @@SEARCH@@)</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Shortcuts</h3>
+            <div className="help-shortcuts-grid">
+              <div><kbd>Ctrl+Z</kbd> <span>Undo</span></div>
+              <div><kbd>Ctrl+Y</kbd> <span>Redo</span></div>
+              <div><kbd>Ctrl+S</kbd> <span>Save project</span></div>
+              <div><kbd>Ctrl+N</kbd> <span>New node / New project</span></div>
+              <div><kbd>Ctrl+A</kbd> <span>Select all visible nodes</span></div>
+              <div><kbd>Delete</kbd> <span>Remove selected nodes</span></div>
+              <div><kbd>Escape</kbd> <span>Close panel / Deselect</span></div>
+              <div><kbd>Shift</kbd>+drag <span>Box-select multiple nodes</span></div>
+            </div>
+          </section>
+
+          <section>
+            <h3>Export &amp; sharing</h3>
+            <ul>
+              <li><strong>JSON</strong> — Full project data (tree, nodes, positions, metadata)</li>
+              <li><strong>Markdown</strong> — Hierarchical outline formatted as Markdown</li>
+              <li><strong>PNG image</strong> — Canvas screenshot (renders at 2x resolution)</li>
+              <li><strong>.nexus bundle</strong> — Complete project bundle including tree, chat history, and attachments</li>
+              <li><strong>Import</strong> — Load a .json or .nexus file into the current workspace</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Canvas navigation</h3>
+            <ul>
+              <li><strong>Pan</strong> — Click and drag on empty canvas space to pan the view</li>
+              <li><strong>Zoom</strong> — Scroll to zoom in and out, or use View &gt; Zoom controls</li>
+              <li><strong>Fit</strong> — Use View &gt; Fit to view to automatically frame all nodes</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }
