@@ -20,9 +20,11 @@ export default function App() {
     <ErrorBoundary>
       <Header />
       <main className="app-main">
-        <Canvas />
         <Suspense fallback={null}>
           <Sidebar />
+        </Suspense>
+        <Canvas />
+        <Suspense fallback={null}>
           <DetailsDrawer />
         </Suspense>
       </main>

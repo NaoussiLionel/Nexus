@@ -48,7 +48,7 @@ export default function Sidebar() {
     const startX = e.clientX;
     const startW = sidebarWidth;
     const onMove = (ev) => {
-      const newW = Math.max(280, Math.min(600, startW + (startX - ev.clientX)));
+      const newW = Math.max(280, Math.min(600, startW + (ev.clientX - startX)));
       setSidebarWidth(newW);
     };
     const onUp = () => {

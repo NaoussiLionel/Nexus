@@ -9,8 +9,8 @@ import { toPng } from 'html-to-image';
 import {
   Undo2, Redo2, LayoutGrid, Maximize, ZoomOut, ZoomIn,
   Download, FileDown, Upload, Image, Package, Search, X, Plus,
-  Menu, HelpCircle, MessageSquare, FileText, History, Paperclip,
-  Settings, KeyRound, Cpu, Trash2, Compass
+  HelpCircle, MessageSquare, FileText, History,
+  Settings, KeyRound, Cpu, Trash2, Compass, ChevronRight
 } from 'lucide-react';
 
 function timeAgo(ts, now) {
@@ -22,33 +22,75 @@ function timeAgo(ts, now) {
   return Math.floor(diff / 86400000) + 'd ago';
 }
 
+function MenuDropdown({ label, icon, children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onClick);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('pointerdown', onClick); };
+  }, [open]);
+
+  return (
+    <div className="menu-dropdown" ref={ref}>
+      <button className={`menu-bar-btn${open ? ' open' : ''}`} onClick={() => setOpen(!open)} aria-haspopup="true" aria-expanded={open}>
+        {icon}<span>{label}</span>
+      </button>
+      {open && <div className="menu-bar-dropdown">{children}</div>}
+    </div>
+  );
+}
+
+function MenuItem({ onClick, icon, label, right, disabled, danger }) {
+  return (
+    <button className={`menu-bar-item${disabled ? ' disabled' : ''}${danger ? ' danger' : ''}`} disabled={disabled} onClick={() => { onClick?.(); }}>
+      {icon && <span className="mbi-icon">{icon}</span>}
+      <span className="mbi-label">{label}</span>
+      {right && <span className="mbi-right">{right}</span>}
+    </button>
+  );
+}
+
+function MenuDivider() {
+  return <div className="menu-bar-divider" />;
+}
+
+function MenuSub({ label, icon, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="menu-bar-sub" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <div className="menu-bar-item sub-trigger">
+        {icon && <span className="mbi-icon">{icon}</span>}
+        <span className="mbi-label">{label}</span>
+        <ChevronRight size={12} className="mbi-right" />
+      </div>
+      {open && <div className="menu-bar-submenu">{children}</div>}
+    </div>
+  );
+}
+
 export default function Header() {
   const {
     tree, chat, canvas, setTree, setChat, setCanvas, pushHistory, persist,
     resetProject, addToast, resetArmed, setResetArmed,
     fitView, zoomIn, zoomOut, undo, redo, history, redoStack, layout, setLayout,
     searchQuery, setSearchQuery,
-    documents, activeDocId, switchDocument, createDocument, deleteDocument,
-    geminiKey, setGeminiKey, provider, setProvider, customModel, setCustomModel,
+    documents, activeDocId, switchDocument, createDocument,
+    geminiKey, setGeminiKey, provider, setProvider, customModel, setCustomModel, setModel,
   } = useNexus();
   const resetTimer = useRef(null);
   const importRef = useRef(null);
   const searchRef = useRef(null);
   const has = !!tree;
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-
-  const [attachments, setAttachments] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('nexus_attachments') || '[]'); } catch { return []; }
-  });
   const [sessions, setSessions] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nexus_sessions') || '[]'); } catch { return []; }
   });
-  const [sessionName, setSessionName] = useState('');
   const [keyInput, setKeyInput] = useState('');
-  const [menuTab, setMenuTab] = useState('docs');
   const [nowTs, setNowTs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -59,14 +101,6 @@ export default function Header() {
   useEffect(() => {
     document.title = tree ? `${tree.title} \u2014 Nexus Architect` : 'Nexus Architect \u2014 AI Project Planning Canvas';
   }, [tree]);
-
-  useEffect(() => {
-    if (!menuOpen) setMenuTab('docs');
-  }, [menuOpen]);
-
-  const closeMenus = useCallback(() => {
-    setMenuOpen(false); setExportOpen(false); setHelpOpen(false);
-  }, []);
 
   const handleArrange = useCallback(() => {
     if (!tree) return;
@@ -81,7 +115,6 @@ export default function Header() {
     if (!tree) return;
     downloadFile(JSON.stringify(stripForExport(tree), null, 2), sanitizeFilename(tree.title) + '.json', 'application/json');
     addToast('Exported as JSON');
-    setExportOpen(false);
   }, [tree, addToast]);
 
   const handleExportMD = useCallback(() => {
@@ -94,7 +127,6 @@ export default function Header() {
     })(tree, 0);
     downloadFile(lines.join('\n') + '\n', sanitizeFilename(tree.title) + '.md', 'text/markdown');
     addToast('Exported as outline');
-    setExportOpen(false);
   }, [tree, addToast]);
 
   const handleExportImage = useCallback(async () => {
@@ -107,7 +139,6 @@ export default function Header() {
       downloadFile(dataUrl, sanitizeFilename(tree.title) + '.png', 'image/png');
       addToast('Exported as PNG');
     } catch { addToast('Could not render the canvas as an image. Try a different browser.', 'error'); }
-    setExportOpen(false);
   }, [tree, addToast]);
 
   const handleExportBundle = useCallback(() => {
@@ -117,7 +148,6 @@ export default function Header() {
     const bundle = { version: 2, exportedAt: Date.now(), type: 'nexus-architect-bundle', tree: stripForExport(tree), chat: chat.slice(-48), attachments: att };
     downloadFile(JSON.stringify(bundle, null, 2), sanitizeFilename(tree.title) + '.nexus', 'application/json');
     addToast('Exported project bundle');
-    setExportOpen(false);
   }, [tree, chat, addToast]);
 
   const handleImport = useCallback((e) => {
@@ -140,7 +170,6 @@ export default function Header() {
     };
     reader.readAsText(file);
     e.target.value = '';
-    setExportOpen(false);
   }, [layout, pushHistory, setTree, setChat, persist, addToast, fitView]);
 
   const handleSidebarToggle = useCallback(() => {
@@ -153,20 +182,6 @@ export default function Header() {
     }
   }, []);
 
-  const saveSession = useCallback(() => {
-    const name = sessionName.trim() || ('Session ' + (sessions.length + 1));
-    const id = generateId('sess');
-    const now = Date.now();
-    const entry = { id, name, createdAt: now, updatedAt: now };
-    const payload = JSON.stringify({ tree, chat: chat.slice(-24), model, layout: null, geminiKey: null, provider: null, customModel: null, attachments: null, savedAt: now });
-    try { localStorage.setItem('nexus_session_' + id, payload); } catch { addToast('Could not save session.', 'error'); return; }
-    const updated = [entry, ...sessions];
-    setSessions(updated);
-    try { localStorage.setItem('nexus_sessions', JSON.stringify(updated)); } catch { /* ignore */ }
-    setSessionName('');
-    addToast('Session "' + name + '" saved');
-  }, [sessions, sessionName, tree, chat, addToast]);
-
   const loadSession = useCallback((id) => {
     try {
       const raw = localStorage.getItem('nexus_session_' + id);
@@ -178,340 +193,192 @@ export default function Header() {
     } catch { addToast('Could not load session.', 'error'); }
   }, [setTree, setChat, addToast]);
 
-  const deleteSession = useCallback((id) => {
-    try { localStorage.removeItem('nexus_session_' + id); } catch { /* ignore */ }
-    const updated = sessions.filter(s => s.id !== id);
-    setSessions(updated);
-    try { localStorage.setItem('nexus_sessions', JSON.stringify(updated)); } catch { /* ignore */ }
-  }, [sessions]);
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') { closeMenus(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [closeMenus]);
-
   return (
     <header className="app-header">
-      <div className="brand">
-        <div className="brand-mark">
-          <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="24" cy="24" r="8" fill="currentColor" stroke="currentColor" strokeWidth="2" opacity="0.9"/>
-            <circle cx="24" cy="24" r="3" fill="var(--bp-800)"/>
-            <line x1="32" y1="24" x2="43" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
-            <line x1="32" y1="24" x2="43" y2="29" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
-            <line x1="16" y1="24" x2="5" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
-            <line x1="16" y1="24" x2="5" y2="29" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
-            <line x1="24" y1="32" x2="24" y2="43" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
-            <line x1="24" y1="16" x2="24" y2="5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
-            <circle cx="43" cy="19" r="3" fill="currentColor" opacity="0.4"/>
-            <circle cx="43" cy="29" r="3" fill="currentColor" opacity="0.4"/>
-            <circle cx="5" cy="19" r="3" fill="currentColor" opacity="0.4"/>
-            <circle cx="5" cy="29" r="3" fill="currentColor" opacity="0.4"/>
-            <circle cx="24" cy="43" r="3" fill="currentColor" opacity="0.4"/>
-            <circle cx="24" cy="5" r="3" fill="currentColor" opacity="0.4"/>
-          </svg>
-        </div>
-        <div className="brand-text">
-          <h1>NEXUS <span>ARCHITECT</span></h1>
-          <p>Plan with purpose</p>
-        </div>
-      </div>
-
-      <div className="header-actions">
-        <div className="toolbar-group" role="group" aria-label="Edit tools">
-          <button className="icon-btn" aria-label="Undo (Ctrl+Z)" title="Undo last change" disabled={!history.length} onClick={undo}>
-            <Undo2 size={16} />
-          </button>
-          <button className="icon-btn" aria-label="Redo (Ctrl+Y)" title="Redo undone change" disabled={!redoStack.length} onClick={redo}>
-            <Redo2 size={16} />
-          </button>
-        </div>
-
-        <div className="toolbar-group" role="group" aria-label="View tools">
-          <button className="icon-btn" aria-label="Auto-arrange layout" title="Re-layout the whole tree" disabled={!has} onClick={handleArrange}>
-            <LayoutGrid size={16} />
-          </button>
-          <select className="layout-select" aria-label="Layout style" value={layout} onChange={(e) => setLayout(e.target.value)} disabled={!has}>
-            {LAYOUTS.map(l => <option key={l.id} value={l.id} title={l.desc}>{l.label}</option>)}
-          </select>
-          <button className="icon-btn" aria-label="Fit to view" title="Zoom to fit all nodes" disabled={!has} onClick={fitView}>
-            <Maximize size={16} />
-          </button>
-          <div className="zoom-group" role="group" aria-label="Zoom controls">
-            <button className="icon-btn" aria-label="Zoom out" title="Zoom out" onClick={zoomOut}><ZoomOut size={15} /></button>
-            <span id="zoomLevel" role="status" aria-live="polite">{Math.round(canvas.scale * 100)}%</span>
-            <button className="icon-btn" aria-label="Zoom in" title="Zoom in" onClick={zoomIn}><ZoomIn size={15} /></button>
+      <div className="header-left">
+        <div className="brand">
+          <div className="brand-mark">
+            <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="8" fill="currentColor" stroke="currentColor" strokeWidth="2" opacity="0.9"/>
+              <circle cx="24" cy="24" r="3" fill="var(--bp-800)"/>
+              <line x1="32" y1="24" x2="43" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+              <line x1="32" y1="24" x2="43" y2="29" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+              <line x1="16" y1="24" x2="5" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+              <line x1="16" y1="24" x2="5" y2="29" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+              <line x1="24" y1="32" x2="24" y2="43" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+              <line x1="24" y1="16" x2="24" y2="5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.6"/>
+              <circle cx="43" cy="19" r="3" fill="currentColor" opacity="0.4"/>
+              <circle cx="43" cy="29" r="3" fill="currentColor" opacity="0.4"/>
+              <circle cx="5" cy="19" r="3" fill="currentColor" opacity="0.4"/>
+              <circle cx="5" cy="29" r="3" fill="currentColor" opacity="0.4"/>
+              <circle cx="24" cy="43" r="3" fill="currentColor" opacity="0.4"/>
+              <circle cx="24" cy="5" r="3" fill="currentColor" opacity="0.4"/>
+            </svg>
           </div>
         </div>
 
-        <div className={`search-wrap${searchQuery !== '' ? ' active' : ''}`}>
-          <input ref={searchRef} className="search-input" type="text" placeholder="Search nodes\u2026" title="Search nodes by title or notes"
+        <nav className="header-menus" role="menubar">
+          <MenuDropdown label="File" icon={<FileText size={14} />}>
+            <MenuItem icon={<Plus size={13} />} label="New document" onClick={() => createDocument('')} />
+            {documents.map(d => (
+              <MenuItem key={d.id} icon={<FileText size={13} />} label={d.name}
+                right={d.id === activeDocId ? '\u2713' : undefined}
+                onClick={() => switchDocument(d.id)} />
+            ))}
+            <MenuDivider />
+            <MenuSub label="Export" icon={<Download size={13} />}>
+              <MenuItem icon={<Download size={13} />} label="JSON data" disabled={!has} onClick={handleExportJSON} />
+              <MenuItem icon={<FileDown size={13} />} label="Markdown outline" disabled={!has} onClick={handleExportMD} />
+              <MenuItem icon={<Image size={13} />} label="PNG image" disabled={!has} onClick={handleExportImage} />
+              <MenuItem icon={<Package size={13} />} label=".nexus bundle" disabled={!has} onClick={handleExportBundle} />
+            </MenuSub>
+            <MenuItem icon={<Upload size={13} />} label="Import file\u2026" onClick={() => importRef.current?.click()} />
+            <input ref={importRef} type="file" accept="application/json,.nexus" hidden onChange={handleImport} />
+            <MenuDivider />
+            <MenuItem icon={<Compass size={13} />} label="Save session\u2026" onClick={() => {
+              const name = prompt('Session name:') || ('Session ' + (sessions.length + 1));
+              const id = generateId('sess');
+              const now = Date.now();
+              const entry = { id, name, createdAt: now, updatedAt: now };
+              const payload = JSON.stringify({ tree, chat: chat.slice(-24), model, layout: null, geminiKey: null, provider: null, customModel: null, attachments: null, savedAt: now });
+              try { localStorage.setItem('nexus_session_' + id, payload); } catch { addToast('Could not save session.', 'error'); return; }
+              const updated = [entry, ...sessions];
+              setSessions(updated);
+              try { localStorage.setItem('nexus_sessions', JSON.stringify(updated)); } catch { /* ignore */ }
+              addToast('Session "' + name + '" saved');
+            }} />
+            {sessions.length > 0 && (
+              <MenuSub label="Load session" icon={<History size={13} />}>
+                {[...sessions].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)).map(s => (
+                  <MenuItem key={s.id} icon={<FileText size={13} />} label={s.name}
+                    right={timeAgo(s.updatedAt || s.createdAt, nowTs)}
+                    onClick={() => loadSession(s.id)} />
+                ))}
+              </MenuSub>
+            )}
+            <MenuDivider />
+            <MenuItem icon={<Trash2 size={13} />} label="Clear project" danger onClick={() => {
+              if (!resetArmed) { setResetArmed(true); addToast('Tap "Clear" once more to wipe the slate clean');
+                clearTimeout(resetTimer.current); resetTimer.current = setTimeout(() => setResetArmed(false), 4000); }
+              else { clearTimeout(resetTimer.current); setResetArmed(false); resetProject();
+                setCanvas({ scale: 1, x: document.getElementById('canvasWrap')?.clientWidth / 2 || 400, y: 70 }); }
+            }} />
+          </MenuDropdown>
+
+          <MenuDropdown label="Edit" icon={<Settings size={14} />}>
+            <MenuItem icon={<Undo2 size={13} />} label="Undo" right="Ctrl+Z" disabled={!history.length} onClick={undo} />
+            <MenuItem icon={<Redo2 size={13} />} label="Redo" right="Ctrl+Y" disabled={!redoStack.length} onClick={redo} />
+            <MenuDivider />
+            <MenuItem icon={<KeyRound size={13} />} label="Preferences\u2026" onClick={() => {
+              const k = prompt('Enter Gemini API key:', geminiKey || '');
+              if (k !== null) setGeminiKey(k.trim());
+            }} />
+          </MenuDropdown>
+
+          <MenuDropdown label="View" icon={<LayoutGrid size={14} />}>
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)', textTransform:'uppercase', letterSpacing:'.08em' }}>Layout</span>
+            </div>
+            {LAYOUTS.map(l => (
+              <MenuItem key={l.id} label={l.label} right={layout === l.id ? '\u2713' : undefined} onClick={() => setLayout(l.id)} />
+            ))}
+            <MenuDivider />
+            <MenuItem icon={<LayoutGrid size={13} />} label="Auto-arrange" disabled={!has} onClick={handleArrange} />
+            <MenuItem icon={<Maximize size={13} />} label="Fit to view" disabled={!has} onClick={fitView} />
+            <MenuDivider />
+            <MenuItem icon={<ZoomIn size={13} />} label="Zoom in" onClick={zoomIn} right={Math.round(canvas.scale * 100) + '%'} />
+            <MenuItem icon={<ZoomOut size={13} />} label="Zoom out" onClick={zoomOut} />
+            <MenuDivider />
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)' }}>Search nodes</span>
+            </div>
+            <div style={{ padding:'4px 10px 8px' }}>
+              <div className="menu-bar-search">
+                <input type="text" placeholder="Find nodes\u2026" value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')} />
+              </div>
+            </div>
+          </MenuDropdown>
+
+          <MenuDropdown label="Options" icon={<Cpu size={14} />}>
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)', textTransform:'uppercase', letterSpacing:'.08em' }}>AI Provider</span>
+            </div>
+            <MenuItem icon={<Cpu size={13} />} label="Puter.ai" right={provider === 'puter' ? '\u2713' : undefined} onClick={() => setProvider('puter')} />
+            <MenuItem icon={<KeyRound size={13} />} label="Custom API" right={provider === 'custom' ? '\u2713' : undefined} onClick={() => setProvider('custom')} />
+            <MenuDivider />
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)' }}>Model</span>
+            </div>
+            <div style={{ padding:'4px 10px 8px' }}>
+              {provider === 'puter' ? (
+                <select className="menu-bar-select" value={model} onChange={(e) => { setModel(e.target.value); persist(); }}>
+                  {['gemini-2.0-flash','gpt-4o','claude-3-5-sonnet-20241022'].map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              ) : (
+                <input className="menu-bar-input" type="text" placeholder="gemini-2.5-flash, gpt-4o\u2026" value={customModel}
+                  onChange={(e) => setCustomModel(e.target.value.trim())} />
+              )}
+            </div>
+            <MenuDivider />
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)' }}>API Key</span>
+            </div>
+            <div style={{ padding:'4px 10px 8px', display:'flex', gap:'6px' }}>
+              <input className="menu-bar-input" type="password" placeholder="Paste your API key\u2026"
+                value={keyInput} onChange={(e) => setKeyInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { setGeminiKey(keyInput.trim()); addToast('API key saved'); } }} />
+              <button className="menu-bar-btn sm" disabled={!keyInput.trim()} onClick={() => { setGeminiKey(keyInput.trim()); addToast('API key saved'); }}>Save</button>
+            </div>
+            {geminiKey && <MenuItem label="Clear saved key" onClick={() => { setGeminiKey(''); setKeyInput(''); }} />}
+          </MenuDropdown>
+
+          <MenuDropdown label="Help" icon={<HelpCircle size={14} />}>
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontWeight:600, fontSize:'.75rem', color:'var(--ink)' }}>Keyboard shortcuts</span>
+            </div>
+            <MenuItem label="Undo" right="Ctrl+Z" />
+            <MenuItem label="Redo" right="Ctrl+Y" />
+            <MenuItem label="Save project" right="Ctrl+S" />
+            <MenuItem label="New node / New project" right="Ctrl+N" />
+            <MenuItem label="Select all nodes" right="Ctrl+A" />
+            <MenuItem label="Delete selected" right="Delete" />
+            <MenuItem label="Close panel / Deselect" right="Escape" />
+            <MenuItem label="Box-select" right="Shift+drag" />
+            <MenuDivider />
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontWeight:600, fontSize:'.75rem', color:'var(--ink)' }}>Getting started</span>
+            </div>
+            <div style={{ padding:'4px 12px 8px', fontSize:'.72rem', color:'var(--ink-dim)', lineHeight:1.5 }}>
+              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Describe your project in the AI chat panel</p>
+              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Click a node to edit its title and notes</p>
+              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Drag nodes to reposition them</p>
+              <p style={{ margin:'0 0 4px' }}>{'\u2022'} Use <strong>File &gt; Export</strong> to save your work</p>
+              <p style={{ margin:'0' }}>{'\u2022'} Create multiple documents via <strong>File</strong></p>
+            </div>
+          </MenuDropdown>
+        </nav>
+      </div>
+
+      <div className="header-right">
+        <div className={`header-search${searchQuery !== '' ? ' active' : ''}`}>
+          <Search size={14} className="header-search-icon" />
+          <input ref={searchRef} type="text" placeholder="Find nodes\u2026"
             value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')} />
           {searchQuery !== '' && (
-            <button className="icon-btn search-clear" aria-label="Clear search" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
-              <X size={15} />
+            <button className="header-search-clear" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
+              <X size={14} />
             </button>
           )}
         </div>
-        <button className={`icon-btn${searchQuery !== '' ? ' active' : ''}`} aria-label="Toggle search" title="Search nodes"
-          onClick={() => { const el = searchRef.current; if (el) { if (document.activeElement === el) { setSearchQuery(''); } else { el.focus(); el.select(); } } }}>
-          <Search size={16} />
-        </button>
-
-        <div className="toolbar-group export-group">
-          <button className="btn-ghost export-trigger" disabled={!has} onClick={() => setExportOpen(!exportOpen)}
-            title="Export or import your project">
-            <Download size={14} /><span className="btn-label">Export</span>
-          </button>
-          {exportOpen && (
-            <div className="header-dropdown export-dropdown">
-              <button className="dropdown-item" onClick={handleExportJSON}><Download size={13} /> JSON data</button>
-              <button className="dropdown-item" onClick={handleExportMD}><FileDown size={13} /> Markdown outline</button>
-              <button className="dropdown-item" onClick={handleExportImage}><Image size={13} /> PNG image</button>
-              <button className="dropdown-item" onClick={handleExportBundle}><Package size={13} /> .nexus bundle</button>
-              <div className="dropdown-divider" />
-              <button className="dropdown-item" onClick={() => importRef.current?.click()}><Upload size={13} /> Import file\u2026</button>
-              <input ref={importRef} type="file" accept="application/json,.nexus" hidden onChange={handleImport} />
-            </div>
-          )}
-        </div>
-
-        <button className="icon-btn" aria-label="Help and shortcuts" title="Keyboard shortcuts & tips" onClick={() => { setHelpOpen(!helpOpen); setMenuOpen(false); }}>
-          {helpOpen ? <X size={17} /> : <HelpCircle size={17} />}
-        </button>
-
-        <button className="icon-btn hamburger-btn" aria-label="Menu" title="Documents, history, settings and more" onClick={() => { setMenuOpen(!menuOpen); setHelpOpen(false); }}>
-          {menuOpen ? <X size={17} /> : <Menu size={17} />}
-        </button>
-
-        <button className="icon-btn" aria-label="Toggle AI chat" title="Show or hide the AI chat panel" onClick={handleSidebarToggle}>
+        <button className={`header-chat-btn${searchQuery !== '' ? ' active' : ''}`} aria-label="Toggle AI chat panel" title="Toggle AI chat" onClick={handleSidebarToggle}>
           <MessageSquare size={17} />
         </button>
       </div>
-
-      {helpOpen && (
-        <div className="header-overlay-panel help-panel">
-          <div className="panel-header"><HelpCircle size={14} /> Help &amp; Shortcuts</div>
-          <div className="help-content">
-            <div className="help-section">
-              <div className="help-section-title">Keyboard shortcuts</div>
-              <div className="help-shortcuts">
-                <div><kbd>Ctrl+Z</kbd> <span>Undo</span></div>
-                <div><kbd>Ctrl+Y</kbd> <span>Redo</span></div>
-                <div><kbd>Ctrl+S</kbd> <span>Save project</span></div>
-                <div><kbd>Ctrl+N</kbd> <span>New node / New project</span></div>
-                <div><kbd>Ctrl+A</kbd> <span>Select all visible nodes</span></div>
-                <div><kbd>Delete</kbd> <span>Remove selected nodes</span></div>
-                <div><kbd>Escape</kbd> <span>Close panel / Deselect</span></div>
-                <div><kbd>Shift</kbd>+drag <span>Box-select multiple nodes</span></div>
-              </div>
-            </div>
-            <div className="help-section">
-              <div className="help-section-title">Getting started</div>
-              <ul className="help-tips">
-                <li>Describe your project in the AI chat panel to generate a structured mind map</li>
-                <li>Click a node to edit its title and notes in the details drawer</li>
-                <li>Drag nodes to reposition them manually</li>
-                <li>Use the <strong>Export</strong> menu to save your work as JSON, Markdown, or an image</li>
-                <li>Create multiple documents for different projects using the <strong>Menu</strong> button</li>
-                <li>Sessions auto-save every 30 seconds for quick recovery</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {menuOpen && (
-        <div className="header-overlay-panel menu-panel">
-          <div className="menu-tabs">
-            <button className={`menu-tab${menuTab === 'docs' ? ' active' : ''}`} onClick={() => setMenuTab('docs')}>
-              <FileText size={13} /> Docs
-            </button>
-            <button className={`menu-tab${menuTab === 'history' ? ' active' : ''}`} onClick={() => setMenuTab('history')}>
-              <History size={13} /> History
-            </button>
-            <button className={`menu-tab${menuTab === 'sessions' ? ' active' : ''}`} onClick={() => setMenuTab('sessions')}>
-              <Compass size={13} /> Sessions
-            </button>
-            <button className={`menu-tab${menuTab === 'attachments' ? ' active' : ''}`} onClick={() => setMenuTab('attachments')}>
-              <Paperclip size={13} /> Files
-            </button>
-            <button className={`menu-tab${menuTab === 'settings' ? ' active' : ''}`} onClick={() => setMenuTab('settings')}>
-              <Settings size={13} /> Settings
-            </button>
-          </div>
-
-          <div className="menu-content">
-            {menuTab === 'docs' && (
-              <div className="menu-section">
-                <div className="menu-section-title">Documents</div>
-                <div className="menu-doc-list">
-                  {documents.map(d => (
-                    <div key={d.id} className={`menu-doc-item${d.id === activeDocId ? ' active' : ''}`}>
-                      <button className="menu-doc-name" onClick={() => { switchDocument(d.id); setMenuOpen(false); }}>
-                        <FileText size={13} />
-                        <span>{d.name}</span>
-                        {d.id === activeDocId && <span className="menu-doc-check">{'\u2713'}</span>}
-                      </button>
-                      {d.id !== activeDocId && (
-                        <button className="menu-doc-del" aria-label="Delete document" onClick={(e) => { e.stopPropagation(); deleteDocument(d.id); }}>
-                          <X size={11} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button className="menu-action-btn" onClick={() => { createDocument(''); setMenuOpen(false); }}>
-                  <Plus size={13} /> New document
-                </button>
-              </div>
-            )}
-
-            {menuTab === 'history' && (
-              <div className="menu-section">
-                <div className="menu-section-title">Undo / Redo</div>
-                <div className="menu-history-actions">
-                  <button className={`menu-action-btn${!history.length ? ' disabled' : ''}`} disabled={!history.length} onClick={() => { undo(); }}>
-                    <Undo2 size={13} /> Undo <span className="menu-count">{history.length}</span>
-                  </button>
-                  <button className={`menu-action-btn${!redoStack.length ? ' disabled' : ''}`} disabled={!redoStack.length} onClick={() => { redo(); }}>
-                    <Redo2 size={13} /> Redo <span className="menu-count">{redoStack.length}</span>
-                  </button>
-                </div>
-                <div className="menu-hint">Each action creates a snapshot. Max 20 undo steps.</div>
-              </div>
-            )}
-
-            {menuTab === 'sessions' && (
-              <div className="menu-section">
-                <div className="menu-section-title">Sessions</div>
-                <div className="menu-session-save">
-                  <input className="settings-input" type="text" placeholder="Session name\u2026" value={sessionName}
-                    onChange={(e) => setSessionName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveSession(); }} />
-                  <button className="menu-action-btn" onClick={saveSession}><Plus size={13} /> Save</button>
-                </div>
-                <div className="menu-session-list">
-                  {sessions.length === 0 && <div className="menu-empty">No sessions yet. Sessions auto-save every 30s.</div>}
-                  {[...sessions].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)).map(s => (
-                    <div key={s.id} className="menu-session-item">
-                      <button className="menu-session-name" onClick={() => { loadSession(s.id); setMenuOpen(false); }}>
-                        <FileText size={12} />
-                        <span>{s.name}</span>
-                        <span className="menu-meta">{timeAgo(s.updatedAt || s.createdAt, nowTs)}</span>
-                      </button>
-                      {!s.auto && (
-                        <button className="menu-session-del" aria-label="Delete session" onClick={() => deleteSession(s.id)}>
-                          <X size={11} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {menuTab === 'attachments' && (
-              <div className="menu-section">
-                <div className="menu-section-title">Attachments</div>
-                <div className="menu-attachments-list">
-                  {attachments.length === 0 && <div className="menu-empty">No files attached yet.</div>}
-                  {attachments.map(a => (
-                    <div key={a.id} className="menu-attachment-item">
-                      {a.thumbnail ? <img src={a.thumbnail} alt={a.name} className="menu-attachment-thumb" />
-                        : <div className="menu-attachment-icon"><FileText size={14} /></div>}
-                      <div className="menu-attachment-info">
-                        <div className="menu-attachment-name">{a.name}</div>
-                        <div className="menu-meta">{a.type || 'unknown'} &middot; {a.size > 1024 ? Math.round(a.size / 1024) + 'KB' : a.size + 'B'}</div>
-                      </div>
-                      <button className="menu-attachment-del" aria-label="Remove file"
-                        onClick={() => { const updated = attachments.filter(x => x.id !== a.id); setAttachments(updated); try { localStorage.setItem('nexus_attachments', JSON.stringify(updated)); } catch { /* ignore */ } }}>
-                        <X size={11} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button className="menu-action-btn" onClick={() => document.getElementById('menuFileInput')?.click()}>
-                  <Upload size={13} /> Add files
-                </button>
-                <input id="menuFileInput" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.csv,.json"
-                  style={{ display: 'none' }}
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files || []);
-                    if (!files.length) return;
-                    const newFiles = [];
-                    for (const file of files) {
-                      const entry = { id: generateId('file'), name: file.name, type: file.type, size: file.size };
-                      if (file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        const dataUrl = await new Promise(res => { reader.onload = (e) => res(e.target.result); reader.readAsDataURL(file); });
-                        const img = new Image();
-                        await new Promise(res => { img.onload = res; img.src = dataUrl; });
-                        const c = document.createElement('canvas');
-                        const max = 150;
-                        c.width = Math.min(img.width, max);
-                        c.height = Math.min(img.height, max) * (Math.min(img.width, max) / img.width);
-                        const ctx = c.getContext('2d');
-                        ctx.drawImage(img, 0, 0, c.width, c.height);
-                        entry.thumbnail = c.toDataURL('image/jpeg', 0.5);
-                      }
-                      newFiles.push(entry);
-                    }
-                    const updated = [...attachments, ...newFiles];
-                    setAttachments(updated);
-                    try { localStorage.setItem('nexus_attachments', JSON.stringify(updated)); } catch { /* ignore */ }
-                    addToast('Added ' + files.length + ' file(s)');
-                    e.target.value = '';
-                  }} />
-              </div>
-            )}
-
-            {menuTab === 'settings' && (
-              <div className="menu-section">
-                <div className="menu-section-title">AI Provider</div>
-                <div className="menu-settings-row">
-                  <button className={`menu-toggle-btn${provider === 'puter' ? ' active' : ''}`} onClick={() => setProvider('puter')}>
-                    <Cpu size={13} /> Puter.ai
-                  </button>
-                  <button className={`menu-toggle-btn${provider === 'custom' ? ' active' : ''}`} onClick={() => setProvider('custom')}>
-                    <KeyRound size={13} /> Custom API
-                  </button>
-                </div>
-                {provider === 'custom' && (
-                  <div className="menu-settings-row">
-                    <label className="menu-label">Model</label>
-                    <input className="settings-input" type="text" placeholder="gemini-2.5-flash, gpt-4o, \u2026" value={customModel}
-                      onChange={(e) => setCustomModel(e.target.value.trim())} />
-                  </div>
-                )}
-                <div className="menu-settings-row">
-                  <label className="menu-label">API Key {provider === 'custom' ? '(required)' : '(fallback)'}</label>
-                  <div className="menu-key-row">
-                    <input className="settings-input" type="password" placeholder={provider === 'custom' ? 'Paste your API key\u2026' : 'Paste your Gemini API key\u2026'}
-                      value={keyInput} onChange={(e) => setKeyInput(e.target.value)} />
-                    <button className="menu-action-btn" disabled={!keyInput.trim()} onClick={() => { setGeminiKey(keyInput.trim()); addToast('API key saved'); }}>Save</button>
-                  </div>
-                </div>
-                {geminiKey && <button className="menu-link-btn" onClick={() => { setGeminiKey(''); setKeyInput(''); }}>Clear saved key</button>}
-                <div className="menu-divider" />
-                <div className="menu-section-title">Project</div>
-                <button className="menu-action-btn danger" onClick={() => {
-                  if (!resetArmed) { setResetArmed(true); addToast('Tap "Clear" once more to wipe the slate clean');
-                    clearTimeout(resetTimer.current); resetTimer.current = setTimeout(() => setResetArmed(false), 4000); }
-                  else { clearTimeout(resetTimer.current); setResetArmed(false); resetProject();
-                    setCanvas({ scale: 1, x: document.getElementById('canvasWrap')?.clientWidth / 2 || 400, y: 70 }); setMenuOpen(false); }
-                }}>
-                  <Trash2 size={13} /> {resetArmed ? 'Confirm clear' : 'Clear current project'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </header>
   );
 }
