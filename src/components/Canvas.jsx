@@ -5,7 +5,7 @@ import { useCanvas } from '../hooks/useCanvas';
 import {
   getVisibleIds, recomputeLayout, assignCodes,
   countDescendants, maxDepth, makeNode, findNode,
-  removeNodeFromTree
+  removeNodeFromTree, findParent
 } from '../utils/tree';
 import { nodeWidth, nodeHeight } from '../utils/helpers';
 import { Compass, Trash2, ChevronRight } from 'lucide-react';
@@ -27,9 +27,11 @@ export default function Canvas() {
   const [marqueeBox, setMarqueeBox] = useState(null);
   const treeRef = useRef(tree);
   const scaleRef = useRef(canvas.scale);
+  const visibleNodesRef = useRef(visibleNodes);
 
   useEffect(() => { treeRef.current = tree; });
   useEffect(() => { scaleRef.current = canvas.scale; });
+  useEffect(() => { visibleNodesRef.current = visibleNodes; }, [visibleNodes]);
 
   const visibleIds = useMemo(() =>
     tree ? getVisibleIds(tree, isolatedId) : new Set(),
@@ -68,6 +70,14 @@ export default function Canvas() {
     if (zoomEl) zoomEl.textContent = `${Math.round(canvas.scale * 100)}%`;
     if (scaleEl) scaleEl.textContent = `SCALE 1:${Math.max(1, Math.round(100 / canvas.scale))}`;
   }, [canvas]);
+
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current && tree && window.innerWidth <= 640) {
+      mountedRef.current = true;
+      setTimeout(fitView, 100);
+    }
+  }, [tree, fitView]);
 
   const handlePointerDown = useCallback((e) => {
     const nodeEl = e.target.closest('.mind-node');
@@ -256,6 +266,25 @@ export default function Canvas() {
         return;
       }
 
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key) && !isInput && t) {
+        e.preventDefault();
+        const vn = visibleNodesRef.current;
+        const sorted = vn.slice().sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+        const currentIdx = sorted.findIndex(n => n.id === selectedId);
+        if (e.key === 'ArrowUp' && currentIdx > 0) {
+          setSelectedId(sorted[currentIdx - 1].id); setSelectedIds(new Set([sorted[currentIdx - 1].id]));
+        } else if (e.key === 'ArrowDown' && currentIdx < sorted.length - 1) {
+          setSelectedId(sorted[currentIdx + 1].id); setSelectedIds(new Set([sorted[currentIdx + 1].id]));
+        } else if (e.key === 'ArrowLeft') {
+          const n = findNode(t, selectedId);
+          if (n && n.id !== t.id) { const p = findParent(t, n.id); if (p) { setSelectedId(p.id); setSelectedIds(new Set([p.id])); } }
+        } else if (e.key === 'ArrowRight') {
+          const n = findNode(t, selectedId);
+          if (n && n.children?.length) { setSelectedId(n.children[0].id); setSelectedIds(new Set([n.children[0].id])); }
+        }
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && !isInput) {
         switch (e.key) {
           case 'z': e.preventDefault(); if (e.shiftKey) { if (redo) redo(); } else { if (undo) undo(); } break;
@@ -370,16 +399,16 @@ export default function Canvas() {
       <div className={`empty-state${tree ? ' hidden' : ''}`} id="emptyState">
         <div className="empty-icon"><Compass size={30} /></div>
         <h2>What are we building today?</h2>
-        <p>Tell the AI Architect on the right what you're working on — it'll sketch out a first plan for you. Or drop a pin on the canvas and start building your way.</p>
+        <p>Tell the AI Architect on the left what you're working on — it'll sketch out a first plan for you. Or drop a pin on the canvas and start building your way.</p>
         <button className="btn-primary" type="button" aria-label="Start with a blank canvas" onClick={handleStartEmpty}>
           Start with a blank canvas
         </button>
       </div>
 
-      <div className="scale-indicator" aria-hidden="true">
-        <div className="scale-ticks" />
+      <button className="scale-indicator" title="Click to fit view" onClick={fitView}>
+        <div className="scale-ticks" aria-hidden="true" />
         <span id="scaleLabel">SCALE 1:{Math.max(1, Math.round(100 / canvas.scale))}</span>
-      </div>
+      </button>
 
       {tree && (
         <div className="shortcuts-hint" aria-hidden="true">

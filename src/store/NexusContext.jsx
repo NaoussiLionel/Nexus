@@ -115,7 +115,7 @@ export function NexusProvider({ children }) {
       return next.length > 3 ? next.slice(-3) : next;
     });
     if (!isError) {
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 6000 : 3400);
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 8000 : 5000);
     }
   }, []);
 

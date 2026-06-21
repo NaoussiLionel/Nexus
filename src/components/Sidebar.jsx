@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar() {
-  const { tree, chat, setChat, model, setModel, busy, persist, provider, customModel, sidebarWidth, setSidebarWidth } = useNexus();
+  const { tree, chat, setChat, model, setModel, busy, persist, provider, customModel, geminiKey, sidebarWidth, setSidebarWidth } = useNexus();
   const { sendChatMessage } = useAI();
   const inputRef = useRef(null);
   const [input, setInput] = useState('');
@@ -78,6 +78,11 @@ export default function Sidebar() {
   return (
     <aside className="sidebar" id="sidebar">
       <div className="sidebar-resize-handle" ref={resizeRef} onPointerDown={handleResizeStart} />
+      {provider === 'custom' && (!customModel || !geminiKey) && (
+        <div className="ai-unavailable-banner">
+          AI unavailable — configure a model and API key in Options to use custom AI
+        </div>
+      )}
       <div className="sidebar-header">
         <div className="sidebar-title">
           <div>
@@ -111,8 +116,8 @@ export default function Sidebar() {
           <div className="msg msg-ai" style={{ animation:'none', marginTop:'8px' }}>
             <div className="msg-avatar"><Compass size={14} /></div>
             <div className="msg-bubble" style={{ background:'transparent', border:'1px dashed var(--bp-600)', color:'var(--ink-faint)', fontSize:'.78rem', textAlign:'center', padding:'20px 16px' }}>
-              <div style={{ fontWeight:600, color:'var(--ink-dim)', marginBottom:'6px', fontSize:'.85rem' }}>Welcome to Nexus Architect</div>
-              <div style={{ lineHeight:1.6 }}>Describe your project idea below, and I&apos;ll help you structure it into a clear plan. Try a suggestion to get started, or just type whatever&apos;s on your mind.</div>
+              <div style={{ fontWeight:600, color:'var(--ink-dim)', marginBottom:'6px', fontSize:'.85rem' }}>What are we building today?</div>
+              <div style={{ lineHeight:1.6 }}>Describe your project and I&apos;ll sketch out a plan. Try &ldquo;Plan a mobile app&rdquo; or &ldquo;Outline a blog redesign&rdquo; to get started.</div>
             </div>
           </div>
         )}
@@ -168,7 +173,7 @@ function ReasoningBlock({ reasoning, pending }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="reasoning-block">
-      <button type="button" className={`reasoning-toggle${pending ? ' pulse' : ''}${open ? ' open' : ''}`} onClick={() => setOpen(!open)}>
+        <button type="button" className={`reasoning-toggle${pending ? ' pulse' : ''}${open ? ' open' : ''}`} onClick={() => setOpen(!open)} aria-expanded={open}>
         <Brain size={12} />
         <span>{pending ? 'Thinking\u2026' : 'Reasoning'}</span>
         <ChevronRight size={12} className="chev" />

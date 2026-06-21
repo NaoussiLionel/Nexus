@@ -50,14 +50,17 @@ function DrawerForm({ node, tree, onSave, onElaborate, busy }) {
       <div className="drawer-body">
         <div>
           <label htmlFor="detailsTitle">Title</label>
-          <input
-            type="text"
-            id="detailsTitle"
-            className="drawer-title-input"
-            maxLength={80}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+          <div className="drawer-title-wrap">
+            <input
+              type="text"
+              id="detailsTitle"
+              className="drawer-title-input"
+              maxLength={80}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <span className="char-counter">{title.length}/80</span>
+          </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <label htmlFor="detailsContent">Notes</label>
@@ -104,8 +107,8 @@ function DrawerForm({ node, tree, onSave, onElaborate, busy }) {
         </div>
       </div>
       <div className="drawer-footer">
-        <button className={`btn-ghost${busy ? ' btn-loading' : ''}`} id="elaborateBtn" type="button" aria-label="Elaborate with AI" disabled={busy} onClick={onElaborate}>
-          {busy ? <LoaderCircle size={15} className="spinner" /> : <Sparkles size={15} />}Elaborate with AI
+        <button className={`btn-ghost${busy ? ' btn-loading' : ''}`} id="elaborateBtn" type="button" aria-label="Add detail with AI" disabled={busy} onClick={onElaborate}>
+          {busy ? <LoaderCircle size={15} className="spinner" /> : <Sparkles size={15} />}Add detail with AI
         </button>
         <button className="btn-primary" id="saveDetailsBtn" type="button" aria-label="Save changes" onClick={handleSave}>
           Save

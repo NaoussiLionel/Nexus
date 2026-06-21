@@ -15,27 +15,32 @@ AI-powered visual mind-mapping canvas for project planning. React 19 + Vite 8. D
 src/
   App.jsx                  — root layout (Header, main: Canvas+Sidebar+Drawer, ConfirmDialog, Toast)
   main.jsx                 — entry point, StrictMode + NexusProvider
-  index.css                — all styles (~740 lines, single file)
+  index.css                — all styles (~870 lines, single file)
   store/
-    NexusContext.jsx       — global state (~485 lines)
+    NexusContext.jsx       — global state (~527 lines)
   components/
-    Header.jsx             — grouped toolbar (Edit, View, Search, Export dropdown, Help ?, Hamburger ☰), doc switcher, overlay panels (Docs/History/Sessions/Files/Settings tabs), Sessions CRUD, Attachments manager, Settings (AI provider, API key, reset)
-    Canvas.jsx             — SVG connectors + node layer + pan/zoom + box-select + empty state + undo/redo shortcuts + close drawer on empty click
-    Sidebar.jsx            — AI chat only (messages, suggestions, input, model select, hide toggle, resize handle)
-    DetailsDrawer.jsx      — node editor (title, notes, checklists, AI elaborate, save, resize handle)
-    MindNode.jsx           — single node (toolbar, collapse, isolate, delete, drag, multi-select, search match, checklist indicator)
+    Header.jsx             — grouped toolbar (File/Edit/View/Options/Help menus), doc switcher, search, inline session naming, Sessions CRUD, Help modal with all shortcuts
+    Canvas.jsx             — SVG connectors + node layer + pan/zoom + box-select + arrow-key nav + empty state + undo/redo shortcuts + mobile fitView + clickable scale indicator
+    Sidebar.jsx            — AI chat (messages, suggestions, input, model select, hide toggle, resize handle, AI-unavailable banner, welcome with examples)
+    DetailsDrawer.jsx      — node editor (title with char counter, notes, checklists, "Add detail with AI", save, resize handle)
+    MindNode.jsx           — single node (toolbar, collapse, isolate, touch-friendly delete confirm, drag, multi-select, search match, checklist indicator)
     Connectors.jsx         — SVG connector paths with depth-based styling
     Toast.jsx              — toast notification container
     ConfirmDialog.jsx      — AI action confirmation modal (Apply/Cancel)
+    Skeleton.jsx           — SidebarSkeleton, DrawerSkeleton lazy loading placeholders
   hooks/
     useAI.js               — sendChatMessage, expandNodeAI, elaborateNodeAI, language consistency
     useCanvas.js           — pan/drag handlers (stable refs)
     useGemini.js           — Google Gemini API (fetch, streaming, native fetch bypass)
     useOpenAI.js           — OpenAI API (fetch, streaming SSE, native fetch bypass)
   utils/
-    tree.js                — tree manipulation (makeNode, findNode, layout, applyActions, normalizeTree, stripForExport, etc.)
+    tree.js                — tree manipulation (makeNode, findNode, findParent, layout, applyActions, normalizeTree, stripForExport, etc.)
     constants.js           — models, suggestions, layout types, gaps, MAX_VISIBLE_DEPTH
-    helpers.js             — generateId(prefix), nodeWidth, nodeHeight, escapeHtml, renderInline, sanitizeFilename, downloadFile
+    helpers.js             — generateId(prefix), nodeWidth, nodeHeight, escapeHtml, renderInline, sanitizeHtml, sanitizeFilename, downloadFile, truncate, logError
+    i18n.js                — t() function with 80+ English keys
+    __tests__/
+      helpers.test.js      — 12 unit tests for helpers
+      tree.test.js         — 10 unit tests for tree functions
 ```
 
 ## State Management (NexusContext)
@@ -112,7 +117,7 @@ Key state:
 - `fitView()` recomputes scale/offset to show all nodes
 
 ## CSS Conventions
-- Single `index.css` file (~740 lines), no CSS modules
+- Single `index.css` file (~870 lines), no CSS modules
 - CSS custom properties for theme (--bp-*, --ink*, --brass*, --paper*)
 - BEM-like naming: `.details-drawer`, `.drawer-header`, `.chat-messages`
 - No Tailwind, no CSS-in-JS
@@ -132,6 +137,9 @@ Key state:
 - `.sidebar-resize-handle` / `.drawer-resize-handle` — resizable panel handles
 - `.doc-switcher` / `.doc-dropdown` — document switcher dropdown
 - `.export-group` — export button wrapper for dropdown positioning
+- `.char-counter` — character count in title input
+- `.search-badge` — match count badge in header search
+- `.ai-unavailable-banner` — warning banner when custom AI not configured
 
 ## Connectors
 - SVG paths in Connectors.jsx
@@ -161,11 +169,19 @@ npm run preview   # Preview production build
 - Canvas grid (`.canvas-grid`) and connector SVGs have `aria-hidden="true"`
 - Button loading states: Send, Elaborate, Expand use `.btn-loading` + `.spinner` (CSS `@keyframes spin`)
 - Chat shows welcome message when empty with onboarding hints
-- Search shows "no results" state when nothing matches
+- Search shows "no results" state when nothing matches and result count badge when active
 - Error messages follow cause + remedy pattern (never "Something went wrong")
-- Toast stack: max 3 visible, errors persist until dismissed, mobile-responsive positioning
+- Toast stack: max 3 visible, errors persist until dismissed, mobile-responsive positioning; auto-dismiss at 5s (info) / 8s (with action)
 - Keyboard shortcut hint (`Ctrl+Z` / Shift+drag / Del) in bottom-center of canvas
-- Mobile: touch targets ≥44×44, larger icon buttons, full-width drawer, full-width toasts
+- Arrow key navigation (↑↓ navigate nodes, ← parent, → first child)
+- Title char counter in DetailsDrawer (`{length}/80`)
+- Touch-friendly delete confirmation (tap twice on touch devices)
+- Menu dropdowns have focus trapping (Tab/Shift+Tab loop, Escape closes)
+- Reasoning toggle has `aria-expanded`
+- Inline session naming (no browser `prompt()`)
+- Scale indicator is a clickable button (calls fitView)
+- AI-unavailable banner when custom provider lacks model/key
+- Mobile: touch targets ≥44×44, larger icon buttons, full-width drawer, full-width toasts; auto fitView on mount
 - `prefers-reduced-motion` respected on all animations
 
 ## Error Handling

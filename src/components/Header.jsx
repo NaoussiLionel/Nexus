@@ -10,8 +10,15 @@ import {
   Undo2, Redo2, LayoutGrid, Maximize, ZoomOut, ZoomIn,
   Download, FileDown, Upload, Image, Package, Search, X, Plus,
   HelpCircle, FileText, History,
-  Settings, KeyRound, Cpu, Trash2, Compass, ChevronRight
+  Settings, Pen, KeyRound, Cpu, Trash2, Compass, ChevronRight
 } from 'lucide-react';
+
+function countMatchingNodes(node, query) {
+  const q = query.toLowerCase();
+  let count = (node.title.toLowerCase().includes(q) || (node.description && node.description.toLowerCase().includes(q))) ? 1 : 0;
+  if (node.children) node.children.forEach(c => count += countMatchingNodes(c, q));
+  return count;
+}
 
 function timeAgo(ts, now) {
   if (!ts) return '';
@@ -25,10 +32,21 @@ function timeAgo(ts, now) {
 function MenuDropdown({ label, icon, children }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const btnRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const focusable = ref.current?.querySelectorAll('button, input, select, [tabindex]:not([tabindex="-1"])');
+    if (focusable?.length) setTimeout(() => focusable[0].focus(), 50);
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setOpen(false); btnRef.current?.focus(); return; }
+      if (e.key === 'Tab' && focusable?.length) {
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
     const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onClick);
@@ -37,7 +55,7 @@ function MenuDropdown({ label, icon, children }) {
 
   return (
     <div className="menu-dropdown" ref={ref}>
-      <button className={`menu-bar-btn${open ? ' open' : ''}`} onClick={() => setOpen(!open)} aria-haspopup="true" aria-expanded={open}>
+      <button ref={btnRef} className={`menu-bar-btn${open ? ' open' : ''}`} onClick={() => setOpen(!open)} aria-haspopup="true" aria-expanded={open}>
         {icon}<span>{label}</span>
       </button>
       {open && <div className="menu-bar-dropdown">{children}</div>}
@@ -94,6 +112,8 @@ export default function Header() {
   });
   const [keyInput, setKeyInput] = useState('');
   const [nowTs, setNowTs] = useState(() => Date.now());
+  const [sessionName, setSessionName] = useState('');
+  const [namingSession, setNamingSession] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNowTs(Date.now()), 30000);
@@ -213,7 +233,7 @@ export default function Header() {
 
         <nav className="header-menus" role="menubar">
           <MenuDropdown label="File" icon={<FileText size={14} />}>
-            <MenuItem icon={<Plus size={13} />} label="New document" onClick={() => createDocument('')} />
+            <MenuItem icon={<Plus size={13} />} label="New document" right="Ctrl+N" onClick={() => createDocument('')} />
             {documents.map(d => (
               <MenuItem key={d.id} icon={<FileText size={13} />} label={d.name}
                 right={d.id === activeDocId ? '\u2713' : undefined}
@@ -229,18 +249,44 @@ export default function Header() {
             <MenuItem icon={<Upload size={13} />} label="Import file\u2026" onClick={() => importRef.current?.click()} />
             <input ref={importRef} type="file" accept="application/json,.nexus" hidden onChange={handleImport} />
             <MenuDivider />
-            <MenuItem icon={<Compass size={13} />} label="Save session\u2026" onClick={() => {
-              const name = prompt('Session name:') || ('Session ' + (sessions.length + 1));
-              const id = generateId('sess');
-              const now = Date.now();
-              const entry = { id, name, createdAt: now, updatedAt: now };
-              const payload = JSON.stringify({ tree, chat: chat.slice(-24), model, layout: null, geminiKey: null, provider: null, customModel: null, attachments: null, savedAt: now });
-              try { localStorage.setItem('nexus_session_' + id, payload); } catch { addToast('Could not save session.', 'error'); return; }
-              const updated = [entry, ...sessions];
-              setSessions(updated);
-              try { localStorage.setItem('nexus_sessions', JSON.stringify(updated)); } catch { /* ignore */ }
-              addToast('Session "' + name + '" saved');
-            }} />
+            {namingSession ? (
+              <div className="menu-bar-item" style={{ padding:'4px 10px', gap:'4px', flexWrap:'wrap' }}>
+                <input className="menu-bar-input" type="text" placeholder="Session name\u2026" value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const name = sessionName.trim() || ('Session ' + (sessions.length + 1));
+                      const id = generateId('sess');
+                      const now = Date.now();
+                      const entry = { id, name, createdAt: now, updatedAt: now };
+                      const payload = JSON.stringify({ tree, chat: chat.slice(-24), model, layout: null, geminiKey: null, provider: null, customModel: null, attachments: null, savedAt: now });
+                      try { localStorage.setItem('nexus_session_' + id, payload); } catch { addToast('Could not save session.', 'error'); return; }
+                      const updated = [entry, ...sessions];
+                      setSessions(updated);
+                      try { localStorage.setItem('nexus_sessions', JSON.stringify(updated)); } catch { /* ignore */ }
+                      addToast('Session "' + name + '" saved');
+                      setNamingSession(false); setSessionName('');
+                    }
+                    if (e.key === 'Escape') { setNamingSession(false); setSessionName(''); }
+                  }} autoFocus />
+                <button className="menu-bar-btn sm" onClick={() => {
+                  const name = sessionName.trim() || ('Session ' + (sessions.length + 1));
+                  const id = generateId('sess');
+                  const now = Date.now();
+                  const entry = { id, name, createdAt: now, updatedAt: now };
+                  const payload = JSON.stringify({ tree, chat: chat.slice(-24), model, layout: null, geminiKey: null, provider: null, customModel: null, attachments: null, savedAt: now });
+                  try { localStorage.setItem('nexus_session_' + id, payload); } catch { addToast('Could not save session.', 'error'); return; }
+                  const updated = [entry, ...sessions];
+                  setSessions(updated);
+                  try { localStorage.setItem('nexus_sessions', JSON.stringify(updated)); } catch { /* ignore */ }
+                  addToast('Session "' + name + '" saved');
+                  setNamingSession(false); setSessionName('');
+                }}>Save</button>
+                <button className="menu-bar-btn sm" onClick={() => { setNamingSession(false); setSessionName(''); }}>Cancel</button>
+              </div>
+            ) : (
+              <MenuItem icon={<Compass size={13} />} label="Save session\u2026" right="Ctrl+S" onClick={() => { setNamingSession(true); setSessionName(''); }} />
+            )}
             {sessions.length > 0 && (
               <MenuSub label="Load session" icon={<History size={13} />}>
                 {[...sessions].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)).map(s => (
@@ -259,14 +305,11 @@ export default function Header() {
             }} />
           </MenuDropdown>
 
-          <MenuDropdown label="Edit" icon={<Settings size={14} />}>
+          <MenuDropdown label="Edit" icon={<Pen size={14} />}>
             <MenuItem icon={<Undo2 size={13} />} label="Undo" right="Ctrl+Z" disabled={!history.length} onClick={undo} />
             <MenuItem icon={<Redo2 size={13} />} label="Redo" right="Ctrl+Y" disabled={!redoStack.length} onClick={redo} />
             <MenuDivider />
-            <MenuItem icon={<KeyRound size={13} />} label="Preferences\u2026" onClick={() => {
-              const k = prompt('Enter Gemini API key:', geminiKey || '');
-              if (k !== null) setGeminiKey(k.trim());
-            }} />
+            <MenuItem icon={<LayoutGrid size={13} />} label="Select all" right="Ctrl+A" disabled={!has} />
           </MenuDropdown>
 
           <MenuDropdown label="View" icon={<LayoutGrid size={14} />}>
@@ -280,30 +323,6 @@ export default function Header() {
             <MenuDivider />
             <MenuItem icon={<ZoomIn size={13} />} label="Zoom in" onClick={zoomIn} right={Math.round(canvas.scale * 100) + '%'} />
             <MenuItem icon={<ZoomOut size={13} />} label="Zoom out" onClick={zoomOut} />
-            <MenuDivider />
-            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
-              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)' }}>Max depth: {maxDepth}</span>
-            </div>
-            <div style={{ padding:'4px 10px 8px', display:'flex', gap:'6px', alignItems:'center' }}>
-              {[2,3,4,5].map(d => (
-                <button key={d} className={`menu-bar-btn${maxDepth === d ? ' active' : ''}`}
-                  onClick={() => setMaxDepth(d)}
-                  style={{ minWidth:'28px', fontWeight: maxDepth === d ? 700 : 400, background: maxDepth === d ? 'var(--bp-600)' : 'var(--bp-700)' }}>
-                  {d}
-                </button>
-              ))}
-            </div>
-            <MenuDivider />
-            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
-              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)' }}>Search nodes</span>
-            </div>
-            <div style={{ padding:'4px 10px 8px' }}>
-              <div className="menu-bar-search">
-                <input type="text" placeholder="Find nodes\u2026" value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')} />
-              </div>
-            </div>
           </MenuDropdown>
 
           <MenuDropdown label="Options" icon={<Cpu size={14} />}>
@@ -342,6 +361,19 @@ export default function Header() {
             <div style={{ padding:'4px 10px 8px', fontSize:'.65rem', color:'var(--ink-faint)', lineHeight:1.5 }}>
               <span style={{ color:'var(--warning, #C8963E)' }}>\u26A0</span> Your API key is stored in plaintext in your browser&apos;s localStorage. Anyone with access to your device can read it. Keep your key secure and never share it.
             </div>
+            <MenuDivider />
+            <div className="menu-bar-item" style={{ cursor:'default', padding:'4px 10px' }}>
+              <span className="mbi-label" style={{ fontSize:'.65rem', color:'var(--ink-faint)', textTransform:'uppercase', letterSpacing:'.08em' }}>Max Depth</span>
+            </div>
+            <div style={{ padding:'4px 10px 8px', display:'flex', gap:'6px', alignItems:'center' }}>
+              {[2,3,4,5].map(d => (
+                <button key={d} className={`menu-bar-btn${maxDepth === d ? ' active' : ''}`}
+                  onClick={() => setMaxDepth(d)}
+                  style={{ minWidth:'28px', fontWeight: maxDepth === d ? 700 : 400, background: maxDepth === d ? 'var(--bp-600)' : 'var(--bp-700)' }}>
+                  {d}
+                </button>
+              ))}
+            </div>
           </MenuDropdown>
 
           <button className="menu-bar-btn help-trigger" onClick={() => setHelpOpen(true)} aria-label="Open help and usage guide">
@@ -357,9 +389,12 @@ export default function Header() {
             value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')} />
           {searchQuery !== '' && (
-        <button className="header-search-clear" aria-label="Clear search" title="Clear search" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
-          <X size={14} />
-        </button>
+        <>
+          <span className="search-badge">{tree ? countMatchingNodes(tree, searchQuery) : 0}</span>
+          <button className="header-search-clear" aria-label="Clear search" title="Clear search" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
+            <X size={14} />
+          </button>
+        </>
           )}
         </div>
       </div>
@@ -496,6 +531,9 @@ function HelpModal({ onClose }) {
               <div><kbd>Ctrl+Shift+Z</kbd> <span>Redo (alternative)</span></div>
               <div><kbd>Delete</kbd> / <kbd>Backspace</kbd> <span>Remove selected node(s)</span></div>
               <div><kbd>Escape</kbd> <span>Close drawer / deselect</span></div>
+              <div><kbd>\u2191</kbd> <kbd>\u2193</kbd> <span>Navigate nodes up/down</span></div>
+              <div><kbd>\u2190</kbd> <span>Go to parent node</span></div>
+              <div><kbd>\u2192</kbd> <span>Go to first child node</span></div>
               <div><kbd>Shift</kbd>+drag <span>Box-select multiple nodes</span></div>
               <div><kbd>Enter</kbd> (in chat) <span>Send message</span></div>
               <div><kbd>Shift+Enter</kbd> (in chat) <span>New line in message</span></div>

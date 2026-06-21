@@ -22,6 +22,7 @@ export default function MindNode({ node }) {
   const { expandNodeAI } = useAI();
   const [showChecklist, setShowChecklist] = useState(false);
   const [clInput, setClInput] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const hasChildren = node.children?.length > 0;
   const depthClass = node.depth === 0 ? 'depth-0' : node.depth === 1 ? 'depth-1' : 'leaf';
@@ -30,7 +31,7 @@ export default function MindNode({ node }) {
   const hasChecklist = checklist.length > 0;
   const angle = node.depth >= 2 ? hashAngle(node.id) : 0;
   const codeLabel = node.depth === 0 ? 'CORE' : ('NO. ' + (node.code || ''));
-  const kindLabel = node.depth === 0 ? 'PROJECT' : node.depth === 1 ? 'BRANCH' : 'ITEM';
+  const kindLabel = node.depth === 0 ? 'PROJECT' : node.depth === 1 ? 'BRANCH' : '';
   const descMax = node.depth === 0 ? 170 : 110;
 
   const q = searchQuery.toLowerCase().trim();
@@ -102,8 +103,7 @@ export default function MindNode({ node }) {
     setTimeout(fitView, 50);
   }, [node.id, isolatedId, setIsolatedId, fitView]);
 
-  const handleDelete = useCallback((e) => {
-    e.stopPropagation();
+  const doDelete = useCallback(() => {
     if (node.id === tree?.id) return;
     pushHistory();
     const updated = produce(tree, draft => {
@@ -113,6 +113,14 @@ export default function MindNode({ node }) {
     persist();
     addToast('Removed "' + node.title + '"', null, { label: 'Undo', onClick: () => undo() });
   }, [node.id, node.title, tree, setTree, pushHistory, persist, addToast, undo]);
+
+  const handleDelete = useCallback((e) => {
+    e.stopPropagation();
+    if (confirmDelete) { setConfirmDelete(false); doDelete(); return; }
+    const isTouch = 'ontouchstart' in window;
+    if (isTouch) { setConfirmDelete(true); setTimeout(() => setConfirmDelete(false), 3000); return; }
+    doDelete();
+  }, [confirmDelete, doDelete]);
 
   const handleClToggle = useCallback((e) => {
     e.stopPropagation();
@@ -161,8 +169,8 @@ export default function MindNode({ node }) {
             <button className="action-btn" aria-label={isolatedId === node.id ? 'Show full map' : 'Focus on this branch'} title={isolatedId === node.id ? 'Show full map' : 'Focus on this branch'} onClick={handleIsolate}>
               {isolatedId === node.id ? <Minimize2 size={14} /> : <Crosshair size={14} />}
             </button>
-            <button className="action-btn danger" aria-label="Delete node" title="Delete node" onClick={handleDelete}>
-              <Trash2 size={14} />
+            <button className={`action-btn danger${confirmDelete ? ' active' : ''}`} aria-label="Delete node" title={confirmDelete ? 'Tap again to confirm' : 'Delete node'} onClick={handleDelete}>
+              {confirmDelete ? <span style={{fontSize:'.62rem',fontWeight:600,lineHeight:'14px'}}>DELETE?</span> : <Trash2 size={14} />}
             </button>
           </>
         )}
