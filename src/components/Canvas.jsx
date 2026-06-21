@@ -27,11 +27,9 @@ export default function Canvas() {
   const [marqueeBox, setMarqueeBox] = useState(null);
   const treeRef = useRef(tree);
   const scaleRef = useRef(canvas.scale);
-  const visibleNodesRef = useRef(visibleNodes);
 
   useEffect(() => { treeRef.current = tree; });
   useEffect(() => { scaleRef.current = canvas.scale; });
-  useEffect(() => { visibleNodesRef.current = visibleNodes; }, [visibleNodes]);
 
   const visibleIds = useMemo(() =>
     tree ? getVisibleIds(tree, isolatedId) : new Set(),
@@ -47,6 +45,9 @@ export default function Canvas() {
     });
     return result;
   }, [tree, visibleIds]);
+
+  const visibleNodesRef = useRef(visibleNodes);
+  useEffect(() => { visibleNodesRef.current = visibleNodes; }, [visibleNodes]);
 
   const matchedIds = useMemo(() => {
     if (!searchQuery) return null;
